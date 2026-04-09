@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>UNO Online</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="menu" class="centered">
+  <h1 class="logo">UNO</h1>
+
+  <input id="name" placeholder="Your name">
+  
+  <div>
+    <button onclick="createRoom()">Create Room</button>
+  </div>
+
+  <input id="roomCode" placeholder="Room Code">
+  
+  <div>
+    <button onclick="joinRoom()">Join Room</button>
+  </div>
+</div>
+
+<div id="lobby" style="display:none;">
+  <h2 id="roomTitle"></h2>
+
+  <label>Players:</label>
+  <select id="playerCount">
+    <option>2</option>
+    <option>3</option>
+    <option>4</option>
+    <option>5</option>
+  </select>
+
+  <label>Cards:</label>
+  <select id="cardCount">
+    <option>5</option>
+    <option>7</option>
+    <option>10</option>
+  </select>
+
+  <button onclick="startGame()">Start Game</button>
+</div>
+
+<div id="game" style="display:none;">
+  <h2 id="room"></h2>
+
+  <button onclick="startGame()">Start Game</button>
+  <button onclick="addAI()">Add AI</button>
+  <button id="drawBtn" onclick="drawCard()">Draw Card</button>
+  <button id="unoBtn" onclick="callUNO()" style="display:none;">
+  UNO!
+  </button>
+
+  <h3 id="timer">Time: 10</h3>
+  <h3 id="stackInfo" style="color: orange;"></h3>
+
+  <div id="topCard"></div>
+  <div id="players"></div>
+
+  <!-- 🎨 COLOR PICKER (ADD HERE 👇) -->
+  <div id="colorPicker" style="display:none;">
+    <div class="color-btn red" onclick="chooseColor('red')"></div>
+    <div class="color-btn green" onclick="chooseColor('green')"></div>
+    <div class="color-btn blue" onclick="chooseColor('blue')"></div>
+    <div class="color-btn yellow" onclick="chooseColor('yellow')"></div>
+  </div>
+
+</div>
+
+<!-- 👇 KEEP THIS OUTSIDE -->
+<div id="hand"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
