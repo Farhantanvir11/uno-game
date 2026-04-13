@@ -1,83 +1,134 @@
 const socket = io();
+
 let roomCode = "";
-let myId = "";
 let myCards = [];
-let timeLeft = 10;
-let timerInterval;
 let currentRoom = null;
 let pendingCard = null;
+let timerInterval = null;
+let toastTimeout = null;
 
-// CREATE ROOM
-function createRoom() {
-  const name = document.getElementById("name").value;
-  socket.emit("createRoom", name);
+const menuScreen = document.getElementById("menu");
+const lobbyScreen = document.getElementById("lobby");
+const gameScreen = document.getElementById("game");
+const handElement = document.getElementById("hand");
+const roomTitle = document.getElementById("roomTitle");
+const roomStatus = document.getElementById("roomStatus");
+const roomLabel = document.getElementById("roomLabel");
+const lobbyPlayers = document.getElementById("lobbyPlayers");
+const startButton = document.getElementById("startBtn");
+const cardCountSelect = document.getElementById("cardCount");
+const timerLabel = document.getElementById("timer");
+const topCardElement = document.getElementById("topCard");
+const playersElement = document.getElementById("players");
+const stackInfo = document.getElementById("stackInfo");
+const unoButton = document.getElementById("unoBtn");
+const drawButton = document.getElementById("drawBtn");
+const colorPicker = document.getElementById("colorPicker");
+const toast = document.getElementById("toast");
+const deckDecisionModal = document.getElementById("deckDecisionModal");
+const deckDecisionText = document.getElementById("deckDecisionText");
+const deckDecisionActions = document.getElementById("deckDecisionActions");
+const shuffleDeckBtn = document.getElementById("shuffleDeckBtn");
+const winnerModal = document.getElementById("winnerModal");
+const winnerNameElement = document.getElementById("winnerName");
+
+function getNameValue() {
+  return document.getElementById("name").value.trim();
 }
 
-// JOIN ROOM
-function joinRoom() {
-  const name = document.getElementById("name").value;
-  const code = document.getElementById("roomCode").value;
-
-  roomCode = code.toUpperCase();
-  socket.emit("joinRoom", { roomCode, playerName: name });
+function setScreen(screen) {
+  menuScreen.style.display = screen === "menu" ? "block" : "none";
+  lobbyScreen.style.display = screen === "lobby" ? "block" : "none";
+  gameScreen.style.display = screen === "game" ? "block" : "none";
 }
 
-// ADD AI
-function addAI() {
-  socket.emit("addAI", roomCode);
-  
+function closeWinnerModal() {
+  winnerModal.style.display = "none";
+  setScreen("lobby");
 }
-//DRAW CARD 
-function drawCard() {
-  if (currentRoom.players[currentRoom.turn].id !== myId) {
-    alert("Not your turn!");
+
+function showToast(message, duration = 1000) {
+  clearTimeout(toastTimeout);
+  toast.innerText = message;
+  toast.classList.add("show");
+
+  toastTimeout = setTimeout(() => {
+    toast.classList.remove("show");
+  }, duration);
+}
+
+function renderDeckDecision(room) {
+  if (!room?.awaitingDeckDecision) {
+    deckDecisionModal.style.display = "none";
     return;
   }
 
-  // 🎴 create fake card animation
-  const deck = document.getElementById("topCard");
-  const hand = document.getElementById("hand");
+  const isHost = socket.id === room.hostId;
+  deckDecisionModal.style.display = "flex";
+  deckDecisionActions.style.display = isHost ? "flex" : "none";
 
-  const rect = deck.getBoundingClientRect();
-
-  const fakeCard = document.createElement("div");
-  fakeCard.className = "card back"; // backside look
-  fakeCard.style.position = "fixed";
-  fakeCard.style.left = rect.left + "px";
-  fakeCard.style.top = rect.top + "px";
-  fakeCard.style.width = "70px";
-  fakeCard.style.height = "100px";
-  fakeCard.style.zIndex = 999;
-  fakeCard.style.transition = "all 0.4s ease";
-
-  document.body.appendChild(fakeCard);
-
-  // 🎯 move to bottom (hand area)
-  setTimeout(() => {
-    fakeCard.style.top = (window.innerHeight - 120) + "px";
-    fakeCard.style.left = (window.innerWidth / 2 - 35) + "px";
-  }, 10);
-
-  // 🧹 remove animation
-  setTimeout(() => {
-    fakeCard.remove();
-  }, 400);
-
-  // 🚀 THEN request real card
-  setTimeout(() => {
-    socket.emit("drawCard", roomCode);
-  }, 300);
+  if (isHost) {
+    deckDecisionText.innerText = "Choose whether to reshuffle the used cards or declare the current leader the winner.";
+    shuffleDeckBtn.disabled = !room.canShuffleDeck;
+  } else {
+    deckDecisionText.innerText = "The host is deciding what to do because the main deck is empty.";
+  }
 }
-//CALL UNO 
+
+function createRoom() {
+  const name = getNameValue();
+  if (!name) {
+    alert("Enter your name first.");
+    return;
+  }
+
+  socket.emit("createRoom", name);
+}
+
+function joinRoom() {
+  const name = getNameValue();
+  const code = document.getElementById("roomCode").value.trim().toUpperCase();
+
+  if (!name || !code) {
+    alert("Enter your name and room code.");
+    return;
+  }
+
+  roomCode = code;
+  socket.emit("joinRoom", { roomCode: code, playerName: name });
+}
+
+function startGame() {
+  if (!roomCode) {
+    return;
+  }
+
+  socket.emit("startGame", {
+    roomCode,
+    cards: cardCountSelect.value
+  });
+}
+
+function drawCard() {
+  if (!currentRoom || currentRoom.players[currentRoom.turn]?.id !== socket.id) {
+    alert("It is not your turn.");
+    return;
+  }
+
+  socket.emit("drawCard", roomCode);
+}
+
 function callUNO() {
   socket.emit("uno", roomCode);
+  unoButton.style.display = "none";
 }
 
-//Choose COlor 
 function chooseColor(color) {
-  document.getElementById("colorPicker").style.display = "none";
+  colorPicker.style.display = "none";
 
-  if (!pendingCard) return;
+  if (!pendingCard) {
+    return;
+  }
 
   socket.emit("playCard", {
     roomCode,
@@ -88,230 +139,214 @@ function chooseColor(color) {
   pendingCard = null;
 }
 
-// ROOM CREATED
-socket.on("roomCreated", (code) => {
-  roomCode = code;
+function updateLobby(room) {
+  currentRoom = room;
+  roomCode = room.roomCode;
+  roomTitle.innerText = `Room: ${room.roomCode}`;
+  roomStatus.innerText = `Players: ${room.players.length}/5`;
+  roomLabel.innerText = `Room ${room.roomCode}`;
+  startButton.disabled = socket.id !== room.hostId || room.players.length < 2;
 
-  document.getElementById("menu").style.display = "none";
-  document.getElementById("lobby").style.display = "block";
+  lobbyPlayers.innerHTML = "";
 
-  document.getElementById("roomTitle").innerText = "Room: " + code;
-});
-
-// START GAME
-function startGame() {
-  const players = document.getElementById("playerCount").value;
-  const cards = document.getElementById("cardCount").value;
-
-  socket.emit("startGame", {
-    roomCode,
-    players,
-    cards
+  room.players.forEach((player) => {
+    const item = document.createElement("li");
+    const hostLabel = player.id === room.hostId ? " (Host)" : "";
+    item.innerText = `${player.name}${hostLabel}`;
+    lobbyPlayers.appendChild(item);
   });
 }
 
-// RECEIVE PLAYER CARDS
-socket.on("yourCards", (cards) => {
-  myCards = cards;
+function startTurnTimer(turnEndsAt) {
+  clearInterval(timerInterval);
 
-  // ✅ re-render using current room
+  if (!turnEndsAt) {
+    timerLabel.innerText = "Time: -";
+    return;
+  }
+
+  const renderTime = () => {
+    const secondsLeft = Math.max(0, Math.ceil((turnEndsAt - Date.now()) / 1000));
+    timerLabel.innerText = `Time: ${secondsLeft}`;
+
+    if (secondsLeft === 0) {
+      clearInterval(timerInterval);
+    }
+  };
+
+  renderTime();
+  timerInterval = setInterval(renderTime, 250);
+}
+
+function playCard(card) {
+  if (!currentRoom || currentRoom.players[currentRoom.turn]?.id !== socket.id) {
+    return;
+  }
+
+  if (card.value === "wild" || card.value === "+4") {
+    pendingCard = card;
+    colorPicker.style.display = "flex";
+    return;
+  }
+
+  socket.emit("playCard", { roomCode, card });
+}
+
+function getCardLabel(card) {
+  return card.value === "reverse" ? "🔁" : card.value;
+}
+
+function renderHand(room) {
+  handElement.innerHTML = "";
+  const isMyTurn = room.players[room.turn]?.id === socket.id && !room.awaitingDeckDecision;
+
+  myCards.forEach((card) => {
+    const cardElement = document.createElement("button");
+    cardElement.className = `card ${card.color}`;
+    cardElement.innerText = getCardLabel(card);
+    cardElement.disabled = !isMyTurn;
+
+    if (isMyTurn) {
+      cardElement.addEventListener("click", () => playCard(card));
+    }
+
+    handElement.appendChild(cardElement);
+  });
+
+  unoButton.style.display = myCards.length === 1 ? "inline-block" : "none";
+  drawButton.disabled = !isMyTurn;
+}
+
+function renderTopCard(room) {
+  const top = room.discard[room.discard.length - 1];
+  if (!top) {
+    topCardElement.innerHTML = "";
+    return;
+  }
+
+  topCardElement.innerHTML = `<div class="card ${top.color}">${getCardLabel(top)}</div>`;
+}
+
+function renderPlayers(room) {
+  playersElement.innerHTML = "";
+  const totalPlayers = room.players.length;
+  const radius = 180;
+  const centerX = window.innerWidth / 2;
+  const centerY = window.innerHeight / 2 - 90;
+
+  room.players.forEach((player, index) => {
+    const angle = (index / totalPlayers) * Math.PI * 2 - Math.PI / 2;
+    const x = centerX + Math.cos(angle) * radius;
+    const y = centerY + Math.sin(angle) * radius;
+
+    const item = document.createElement("div");
+    item.className = "player";
+    item.style.left = `${x}px`;
+    item.style.top = `${y}px`;
+
+    const isActive = index === room.turn;
+    const isMe = player.id === socket.id;
+    const meLabel = isMe ? " (You)" : "";
+
+    item.innerText = `${player.name}${meLabel}\n${player.cardCount} cards`;
+
+    if (isActive) {
+      item.classList.add("active");
+    }
+
+    playersElement.appendChild(item);
+  });
+}
+
+function render(room) {
+  currentRoom = room;
+  roomLabel.innerText = `Room ${room.roomCode}`;
+  startTurnTimer(room.turnEndsAt);
+  renderHand(room);
+  renderTopCard(room);
+  renderPlayers(room);
+  stackInfo.innerText = room.stackCount > 0 ? `Draw stack: +${room.stackCount}` : "";
+  renderDeckDecision(room);
+}
+
+function resolveDeckDecision(action) {
+  if (!currentRoom?.awaitingDeckDecision) {
+    return;
+  }
+
+  socket.emit("resolveDeckDecision", { roomCode, action });
+}
+
+socket.on("connect", () => {
   if (currentRoom) {
+    updateLobby(currentRoom);
     render(currentRoom);
   }
 });
 
-// GAME UPDATE
+socket.on("roomCreated", (code) => {
+  roomCode = code;
+  setScreen("lobby");
+});
+
+socket.on("joinedRoom", (code) => {
+  roomCode = code;
+  setScreen("lobby");
+});
+
+socket.on("lobbyUpdated", (room) => {
+  updateLobby(room);
+
+  if (!room.started) {
+    setScreen("lobby");
+  }
+});
+
+socket.on("gameStarted", () => {
+  colorPicker.style.display = "none";
+  deckDecisionModal.style.display = "none";
+  winnerModal.style.display = "none";
+  setScreen("game");
+});
+
+socket.on("yourCards", (cards) => {
+  myCards = cards;
+
+  if (currentRoom?.started) {
+    render(currentRoom);
+  }
+});
+
 socket.on("updateGame", (room) => {
-  myId = socket.id;
   currentRoom = room;
-
-  // ⏱ TIMER
-  clearInterval(timerInterval);
-  timeLeft = 10;
-
-  document.getElementById("timer").innerText = "Time: " + timeLeft;
-
-  timerInterval = setInterval(() => {
-    timeLeft--;
-    document.getElementById("timer").innerText = "Time: " + timeLeft;
-
-    if (timeLeft <= 0) {
-      clearInterval(timerInterval);
-    }
-  }, 1000);
-
-  render(room); // ✅ ONLY ONCE
+  roomCode = room.roomCode;
+  setScreen("game");
+  render(room);
 });
 
-
-// GAME START (SCREEN SWITCH)
-socket.on("gameStarted", () => {  
-  document.getElementById("lobby").style.display = "none";  
-  document.getElementById("game").style.display = "block";  
-});
-
-// PENALTY
 socket.on("penalty", () => {
-  alert("Wrong card! +1 penalty");
+  showToast("Penalty applied");
 });
 
+socket.on("deckEmpty", () => {
+  showToast("Main deck is empty", 1200);
+});
+
+socket.on("roomError", (message) => {
+  alert(message);
+});
 
 socket.on("gameOver", (winnerName) => {
-  alert("🏆 Winner: " + winnerName);
-
-  // reset UI
-  document.getElementById("game").style.display = "none";
-  document.getElementById("menu").style.display = "block";
+  clearInterval(timerInterval);
+  pendingCard = null;
+  colorPicker.style.display = "none";
+  deckDecisionModal.style.display = "none";
+  winnerNameElement.innerText = winnerName;
+  winnerModal.style.display = "flex";
 });
 
-// 🎮 RENDER FUNCTION (VERY IMPORTANT)
-function render(room) {
-  const hand = document.getElementById("hand");
-  hand.innerHTML = "";
-
-  // render MY cards
-  myCards.forEach(card => {
-  const div = document.createElement("div");
-  div.className = "card " + card.color;
-  div.innerText = card.value;
-
-  // ✅ CHECK TURN
-  if (room.players[room.turn].id === myId) {
-
-    div.onclick = () => {
-  console.log("CLICKED CARD:", card);
-
-  // 🎞 animation
-  div.onclick = () => {
-  console.log("CLICKED CARD:", card);
-
-  const rect = div.getBoundingClientRect();
-  const clone = div.cloneNode(true);
-  clone.style.boxShadow = "0 0 20px white";
-
-
-  // 🔥 make floating clone
-  clone.style.position = "fixed";
-  clone.style.left = rect.left + "px";
-  clone.style.top = rect.top + "px";
-  clone.style.width = rect.width + "px";
-  clone.style.height = rect.height + "px";
-  clone.style.zIndex = 999;
-  clone.style.transition = "all 0.4s ease";
-
-  document.body.appendChild(clone);
-
-  // 🎯 target = center (top card)
-  const target = document.getElementById("topCard").getBoundingClientRect();
-
-  setTimeout(() => {
-    clone.style.left = target.left + "px";
-    clone.style.top = target.top + "px";
-    clone.style.transform = "scale(1.2)";
-  }, 10);
-
-  // 🧹 remove clone after animation
-  setTimeout(() => {
-    clone.remove();
-  }, 400);
-
-  // ✅ remove from hand instantly
-  myCards = myCards.filter(
-    c => !(c.color === card.color && c.value === card.value)
-  );
-
-  render(room);
-
-  // 🚀 send to server AFTER animation
-  setTimeout(() => {
-    socket.emit("playCard", { roomCode, card });
-  }, 300);
-};
-
-  // ✅ REMOVE CARD INSTANTLY FROM UI
-  myCards = myCards.filter(
-    c => !(c.color === card.color && c.value === card.value)
-  );
-
-  render(room); // refresh instantly
-  // 🔥 SHOW UNO BUTTON
-  const me = room.players.find(p => p.id === myId);
-
-  if (me && me.cardCount === 1) {
-    document.getElementById("unoBtn").style.display = "block";
-  } else {
-    document.getElementById("unoBtn").style.display = "none";
+window.addEventListener("resize", () => {
+  if (currentRoom?.started) {
+    renderPlayers(currentRoom);
   }
-  
-  // send to server
-  setTimeout(() => {
-
-  // 🌈 if wild or +4 → ask color
-  if (card.value === "wild" || card.value === "+4") {
-
-  pendingCard = card;
-
-  document.getElementById("colorPicker").style.display = "flex";
-
-  } else {
-    socket.emit("playCard", { roomCode, card });
-  }
-
-}, 100);
-};
-
-
-  } else {
-    // ❌ disable if not your turn
-    div.style.opacity = "0.5";
-    div.onclick = null;
-  }
-
-  hand.appendChild(div);
 });
-
-  // TOP CARD
-  const top = room.discard[room.discard.length - 1];
-  document.getElementById("topCard").innerHTML =
-    `<div class="card ${top.color}">${top.value}</div>`;
-
-
-  const stackDiv = document.getElementById("stackInfo");
-
-  if (room.stackCount > 0) {
-    stackDiv.innerText = "Stack: +" + room.stackCount;
-  } else {
-    stackDiv.innerText = "";
-  }
-
-  // PLAYERS LIST
-  const playersDiv = document.getElementById("players");
-  playersDiv.innerHTML = "";
-
-  const centerX = window.innerWidth / 2;
-  const centerY = window.innerHeight / 2 - 150; // 🔥 THIS LINE FIXES YOUR ISSUE
-  const radius = 200;
-  
-
-  room.players.forEach((p, i) => {
-  const angle = (i / room.players.length) * 2 * Math.PI;
-
-  const x = centerX + radius * Math.cos(angle);
-  const y = centerY + radius * Math.sin(angle);
-
-  const div = document.createElement("div");
-  div.className = "player";
-
-  div.style.left = x + "px";
-  div.style.top = y + "px";
-
-  div.innerText = p.name + " (" + p.cardCount + ")";
-
-  if (i === room.turn) {
-    div.style.color = "yellow";
-    div.style.fontWeight = "bold";
-  }
-
-  playersDiv.appendChild(div);
-});
-}
