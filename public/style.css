@@ -213,6 +213,21 @@ button:disabled {
   margin-bottom: 16px;
 }
 
+.hud-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hud-btn {
+  width: auto;
+  min-width: 110px;
+  margin-top: 0;
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-size: 0.92rem;
+}
+
 .controls {
   width: min(460px, 100%);
 }
@@ -538,6 +553,11 @@ button:disabled {
   .controls {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .hud-meta {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .player {
