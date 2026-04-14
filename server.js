@@ -20,7 +20,18 @@ function createPlayer(socket, name) {
     id: socket.id,
     name: (name || "Player").trim().slice(0, 20) || "Player",
     cards: [],
-    calledUNO: false
+    calledUNO: false,
+    isBot: false
+  };
+}
+
+function createBotPlayer(roomCode) {
+  return {
+    id: `bot:${roomCode}`,
+    name: "Robot",
+    cards: [],
+    calledUNO: false,
+    isBot: true
   };
 }
 
@@ -111,10 +122,13 @@ function emitGameState(roomCode) {
   }
 
   room.players.forEach((player) => {
-    io.to(player.id).emit("yourCards", player.cards);
+    if (!player.isBot) {
+      io.to(player.id).emit("yourCards", player.cards);
+    }
   });
 
   io.to(roomCode).emit("updateGame", getSafeRoom(roomCode));
+  queueBotTurnIfNeeded(roomCode);
 }
 
 function sendError(socket, message) {
@@ -173,6 +187,11 @@ function stopTurnTimer(room) {
   room.turnEndsAt = null;
 }
 
+function stopBotTurn(room) {
+  clearTimeout(room.botTurnTimer);
+  room.botTurnTimer = null;
+}
+
 function advanceTurn(roomCode, extraSteps = 1) {
   const room = rooms[roomCode];
   if (!room || room.players.length === 0) {
@@ -190,6 +209,7 @@ function scheduleTurn(roomCode) {
     return;
   }
 
+  stopBotTurn(room);
   stopTurnTimer(room);
   room.turnEndsAt = Date.now() + TURN_DURATION_MS;
 
@@ -254,6 +274,7 @@ function finishGame(roomCode, winnerName) {
   }
 
   room.started = false;
+  stopBotTurn(room);
   stopTurnTimer(room);
   io.to(roomCode).emit("gameOver", winnerName);
   emitLobby(roomCode);
@@ -267,6 +288,193 @@ function getLeadingPlayer(room) {
 
     return best;
   }, null);
+}
+
+function chooseBotColor(cards) {
+  const colorCounts = {
+    red: 0,
+    green: 0,
+    blue: 0,
+    yellow: 0
+  };
+
+  cards.forEach((card) => {
+    if (colorCounts[card.color] !== undefined) {
+      colorCounts[card.color] += 1;
+    }
+  });
+
+  return Object.entries(colorCounts).sort((a, b) => b[1] - a[1])[0][0];
+}
+
+function pickBotCard(player, topCard, stackCount) {
+  const playableCards = player.cards.filter((card) =>
+    isPlayableCard(card, topCard, stackCount)
+  );
+
+  if (playableCards.length === 0) {
+    return null;
+  }
+
+  const rankedCards = playableCards.sort((left, right) => {
+    const score = (card) => {
+      if (stackCount > 0) {
+        return card.value === "+2" ? 3 : 2;
+      }
+
+      if (card.color !== "black" && card.color === topCard.color) {
+        return 4;
+      }
+
+      if (card.color !== "black" && card.value === topCard.value) {
+        return 3;
+      }
+
+      if (card.value === "wild") {
+        return 1;
+      }
+
+      if (card.value === "+4") {
+        return 0;
+      }
+
+      return 2;
+    };
+
+    return score(right) - score(left);
+  });
+
+  return rankedCards[0];
+}
+
+function startRoomGame(roomCode, handSize = DEFAULT_HAND_SIZE) {
+  const room = rooms[roomCode];
+  if (!room) {
+    return false;
+  }
+
+  room.handSize = Number.isInteger(handSize) ? handSize : DEFAULT_HAND_SIZE;
+  room.started = true;
+  room.turn = 0;
+  room.direction = 1;
+  room.stackCount = 0;
+  room.deckDecision = null;
+  room.deck = createUnoDeck();
+  room.discard = [];
+
+  room.players.forEach((player) => {
+    player.cards = [];
+    player.calledUNO = false;
+    drawCards(room, player, room.handSize);
+  });
+
+  let firstCard = room.deck.pop();
+  while (firstCard && firstCard.color === "black") {
+    room.deck.unshift(firstCard);
+    shuffle(room.deck);
+    firstCard = room.deck.pop();
+  }
+
+  room.discard = firstCard ? [firstCard] : [];
+
+  io.to(roomCode).emit("gameStarted");
+  scheduleTurn(roomCode);
+  emitGameState(roomCode);
+  return true;
+}
+
+function runBotTurn(roomCode) {
+  const room = rooms[roomCode];
+  if (!room || !room.started || room.deckDecision) {
+    return;
+  }
+
+  const bot = room.players[room.turn];
+  if (!bot || !bot.isBot) {
+    return;
+  }
+
+  const topCard = getTopCard(room);
+  const selectedCard = pickBotCard(bot, topCard, room.stackCount);
+
+  if (!selectedCard) {
+    const drawCount = room.stackCount > 0 ? room.stackCount : 1;
+    const drawResult = drawCards(room, bot, drawCount);
+
+    if (drawResult.needsDeckDecision) {
+      requestDeckDecision(roomCode, {
+        playerId: bot.id,
+        remainingDraws: drawResult.remainingCount,
+        advanceSteps: 1,
+        clearStackOnResume: true,
+        showPenalty: false
+      });
+      return;
+    }
+
+    room.stackCount = 0;
+    advanceToNextTurn(roomCode);
+    return;
+  }
+
+  const handIndex = bot.cards.findIndex(
+    (card) => card.color === selectedCard.color && card.value === selectedCard.value
+  );
+
+  if (handIndex === -1) {
+    return;
+  }
+
+  const playedCard = { ...bot.cards[handIndex] };
+  bot.cards.splice(handIndex, 1);
+
+  if (bot.cards.length === 1) {
+    bot.calledUNO = true;
+    io.to(roomCode).emit("unoCalled", { playerName: bot.name });
+  }
+
+  if (playedCard.color === "black") {
+    playedCard.color = chooseBotColor(bot.cards);
+  }
+
+  room.discard.push(playedCard);
+
+  if (bot.cards.length === 0) {
+    finishGame(roomCode, bot.name);
+    return;
+  }
+
+  if (playedCard.value === "+2") {
+    room.stackCount += 2;
+  } else if (playedCard.value === "+4") {
+    room.stackCount += 4;
+  } else {
+    room.stackCount = 0;
+  }
+
+  if (playedCard.value === "reverse") {
+    room.direction *= -1;
+  }
+
+  const shouldSkip = playedCard.value === "skip";
+  advanceToNextTurn(roomCode, shouldSkip ? 2 : 1);
+}
+
+function queueBotTurnIfNeeded(roomCode) {
+  const room = rooms[roomCode];
+  if (!room || !room.started || room.deckDecision) {
+    return;
+  }
+
+  const activePlayer = room.players[room.turn];
+  if (!activePlayer || !activePlayer.isBot) {
+    return;
+  }
+
+  stopBotTurn(room);
+  room.botTurnTimer = setTimeout(() => {
+    runBotTurn(roomCode);
+  }, 1200);
 }
 
 function requestDeckDecision(roomCode, decisionState = {}) {
@@ -368,7 +576,8 @@ function removePlayerFromRoom(socketId) {
 
   room.players.splice(index, 1);
 
-  if (room.players.length === 0) {
+  if (room.players.length === 0 || room.players.every((player) => player.isBot)) {
+    stopBotTurn(room);
     stopTurnTimer(room);
     delete rooms[roomCode];
     return;
@@ -411,12 +620,14 @@ io.on("connection", (socket) => {
       players: [createPlayer(socket, playerName)],
       started: false,
       handSize: DEFAULT_HAND_SIZE,
+      soloMode: false,
       turn: 0,
       direction: 1,
       stackCount: 0,
       deck: [],
       discard: [],
       timer: null,
+      botTurnTimer: null,
       turnEndsAt: null,
       deckDecision: null
     };
@@ -451,6 +662,32 @@ io.on("connection", (socket) => {
     emitLobby(normalizedCode);
   });
 
+  socket.on("startBotMatch", (playerName) => {
+    const roomCode = generateRoomCode();
+    const humanPlayer = createPlayer(socket, playerName);
+
+    rooms[roomCode] = {
+      hostId: socket.id,
+      players: [humanPlayer, createBotPlayer(roomCode)],
+      started: false,
+      handSize: DEFAULT_HAND_SIZE,
+      soloMode: true,
+      turn: 0,
+      direction: 1,
+      stackCount: 0,
+      deck: [],
+      discard: [],
+      timer: null,
+      botTurnTimer: null,
+      turnEndsAt: null,
+      deckDecision: null
+    };
+
+    socket.join(roomCode);
+    socket.emit("roomCreated", roomCode);
+    startRoomGame(roomCode, DEFAULT_HAND_SIZE);
+  });
+
   socket.on("startGame", ({ roomCode, cards }) => {
     const room = rooms[roomCode];
     if (!room) {
@@ -469,32 +706,7 @@ io.on("connection", (socket) => {
     }
 
     const handSize = Number.parseInt(cards, 10);
-    room.handSize = Number.isInteger(handSize) ? handSize : DEFAULT_HAND_SIZE;
-    room.started = true;
-    room.turn = 0;
-    room.direction = 1;
-    room.stackCount = 0;
-    room.deck = createUnoDeck();
-    room.discard = [];
-
-    room.players.forEach((player) => {
-      player.cards = [];
-      player.calledUNO = false;
-      drawCards(room, player, room.handSize);
-    });
-
-    let firstCard = room.deck.pop();
-    while (firstCard && firstCard.color === "black") {
-      room.deck.unshift(firstCard);
-      shuffle(room.deck);
-      firstCard = room.deck.pop();
-    }
-
-    room.discard = firstCard ? [firstCard] : [];
-
-    io.to(roomCode).emit("gameStarted");
-    scheduleTurn(roomCode);
-    emitGameState(roomCode);
+    startRoomGame(roomCode, Number.isInteger(handSize) ? handSize : DEFAULT_HAND_SIZE);
   });
 
   socket.on("drawCard", (roomCode) => {
