@@ -257,7 +257,15 @@ function isPlayableCard(card, topCard, stackCount) {
   }
 
   if (stackCount > 0) {
-    return card.value === "+2" || card.value === "+4";
+    if (topCard.value === "+4") {
+      return card.value === "+4";
+    }
+
+    if (topCard.value === "+2") {
+      return card.value === "+2" || card.value === "+4";
+    }
+
+    return false;
   }
 
   if (card.color === "black") {
@@ -265,6 +273,10 @@ function isPlayableCard(card, topCard, stackCount) {
   }
 
   return card.color === topCard.color || card.value === topCard.value;
+}
+
+function isPowerCard(card) {
+  return ["+2", "+4", "skip", "reverse", "wild"].includes(card.value);
 }
 
 function finishGame(roomCode, winnerName) {
@@ -309,7 +321,8 @@ function chooseBotColor(cards) {
 
 function pickBotCard(player, topCard, stackCount) {
   const playableCards = player.cards.filter((card) =>
-    isPlayableCard(card, topCard, stackCount)
+    isPlayableCard(card, topCard, stackCount) &&
+    !(player.cards.length === 1 && isPowerCard(card))
   );
 
   if (playableCards.length === 0) {
@@ -319,7 +332,19 @@ function pickBotCard(player, topCard, stackCount) {
   const rankedCards = playableCards.sort((left, right) => {
     const score = (card) => {
       if (stackCount > 0) {
-        return card.value === "+2" ? 3 : 2;
+        if (topCard.value === "+4") {
+          return card.value === "+4" ? 4 : 0;
+        }
+
+        if (card.value === "+4") {
+          return 4;
+        }
+
+        if (card.value === "+2") {
+          return 3;
+        }
+
+        return 0;
       }
 
       if (card.color !== "black" && card.color === topCard.color) {
@@ -394,8 +419,8 @@ function runBotTurn(roomCode) {
     return;
   }
 
-  const topCard = getTopCard(room);
-  const selectedCard = pickBotCard(bot, topCard, room.stackCount);
+    const topCard = getTopCard(room);
+    const selectedCard = pickBotCard(bot, topCard, room.stackCount);
 
   if (!selectedCard) {
     const drawCount = room.stackCount > 0 ? room.stackCount : 1;
@@ -776,6 +801,29 @@ io.on("connection", (socket) => {
     const topCard = getTopCard(room);
     if (!isPlayableCard(card, topCard, room.stackCount)) {
       emitInvalidMove(socket, "That card cannot be played right now.");
+      const drawResult = drawCards(room, player, 1);
+
+      if (drawResult.drawnCount > 0) {
+        io.to(player.id).emit("penalty");
+      }
+
+      if (drawResult.needsDeckDecision) {
+        requestDeckDecision(roomCode, {
+          playerId: player.id,
+          remainingDraws: drawResult.remainingCount,
+          advanceSteps: 0,
+          clearStackOnResume: false,
+          showPenalty: false
+        });
+        return;
+      }
+
+      emitGameState(roomCode);
+      return;
+    }
+
+    if (player.cards.length === 1 && isPowerCard(card)) {
+      emitInvalidMove(socket, "You cannot finish the game with a power card.");
       const drawResult = drawCards(room, player, 1);
 
       if (drawResult.drawnCount > 0) {
