@@ -179,6 +179,18 @@ function joinRoom() {
   socket.emit("joinRoom", { roomCode: code, playerName: name });
 }
 
+function startBotMatch() {
+  unlockAudio();
+  const name = getNameValue();
+  if (!name) {
+    alert("Enter your name first.");
+    return;
+  }
+
+  playSound("buttonPress");
+  socket.emit("startBotMatch", name);
+}
+
 function startGame() {
   unlockAudio();
   if (!roomCode) {
