@@ -121,6 +121,10 @@ function sendError(socket, message) {
   socket.emit("roomError", message);
 }
 
+function emitInvalidMove(socket, message = "Invalid move.") {
+  socket.emit("invalidMove", message);
+}
+
 function reshuffleDeck(room) {
   if (room.deck.length > 0 || room.discard.length <= 1) {
     return;
@@ -532,6 +536,7 @@ io.on("connection", (socket) => {
     const player = room.players.find((entry) => entry.id === socket.id);
     if (player && player.cards.length === 1) {
       player.calledUNO = true;
+      io.to(roomCode).emit("unoCalled", { playerName: player.name });
     }
   });
 
@@ -558,6 +563,7 @@ io.on("connection", (socket) => {
 
     const topCard = getTopCard(room);
     if (!isPlayableCard(card, topCard, room.stackCount)) {
+      emitInvalidMove(socket, "That card cannot be played right now.");
       const drawResult = drawCards(room, player, 1);
 
       if (drawResult.drawnCount > 0) {
