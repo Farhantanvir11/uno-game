@@ -6,6 +6,13 @@ let currentRoom = null;
 let pendingCard = null;
 let timerInterval = null;
 let toastTimeout = null;
+let previousRoomSnapshot = null;
+let previousCardCount = 0;
+let audioUnlocked = false;
+let pendingDrawSound = false;
+let isMuted = false;
+let timerCountdownPlayed = false;
+const MUTE_STORAGE_KEY = "last-card-battle-muted";
 
 const menuScreen = document.getElementById("menu");
 const lobbyScreen = document.getElementById("lobby");
@@ -23,6 +30,7 @@ const playersElement = document.getElementById("players");
 const stackInfo = document.getElementById("stackInfo");
 const unoButton = document.getElementById("unoBtn");
 const drawButton = document.getElementById("drawBtn");
+const muteButton = document.getElementById("muteBtn");
 const colorPicker = document.getElementById("colorPicker");
 const toast = document.getElementById("toast");
 const deckDecisionModal = document.getElementById("deckDecisionModal");
@@ -32,6 +40,21 @@ const shuffleDeckBtn = document.getElementById("shuffleDeckBtn");
 const winnerModal = document.getElementById("winnerModal");
 const winnerNameElement = document.getElementById("winnerName");
 
+const soundEffects = {
+  buttonPress: new Audio("/sounds/button-press.mp3"),
+  cardPlay: new Audio("/sounds/card-play.mp3"),
+  drawCard: new Audio("/sounds/draw-card.mp3"),
+  invalidMove: new Audio("/sounds/invalid-move.mp3"),
+  timerTick: new Audio("/sounds/timer-tick.mp3"),
+  win: new Audio("/sounds/win.mp3"),
+  unoCall: new Audio("/sounds/uno-call.mp3"),
+  penalty: new Audio("/sounds/penalty.mp3")
+};
+
+Object.values(soundEffects).forEach((audio) => {
+  audio.preload = "auto";
+});
+
 function getNameValue() {
   return document.getElementById("name").value.trim();
 }
@@ -40,6 +63,60 @@ function setScreen(screen) {
   menuScreen.style.display = screen === "menu" ? "block" : "none";
   lobbyScreen.style.display = screen === "lobby" ? "block" : "none";
   gameScreen.style.display = screen === "game" ? "block" : "none";
+}
+
+function unlockAudio() {
+  if (audioUnlocked) {
+    return;
+  }
+
+  audioUnlocked = true;
+}
+
+function loadMutePreference() {
+  try {
+    isMuted = window.localStorage.getItem(MUTE_STORAGE_KEY) === "true";
+  } catch {
+    isMuted = false;
+  }
+}
+
+function saveMutePreference() {
+  try {
+    window.localStorage.setItem(MUTE_STORAGE_KEY, String(isMuted));
+  } catch {
+    // Ignore storage errors and keep the current in-memory preference.
+  }
+}
+
+function updateMuteButton() {
+  muteButton.innerText = isMuted ? "Sound: Off" : "Sound: On";
+}
+
+function toggleMute() {
+  isMuted = !isMuted;
+  saveMutePreference();
+  updateMuteButton();
+}
+
+function playSound(name) {
+  const audio = soundEffects[name];
+  if (!audio || !audioUnlocked || isMuted) {
+    return;
+  }
+
+  audio.currentTime = 0;
+  audio.play().catch(() => {});
+}
+
+function stopSound(name) {
+  const audio = soundEffects[name];
+  if (!audio) {
+    return;
+  }
+
+  audio.pause();
+  audio.currentTime = 0;
 }
 
 function closeWinnerModal() {
@@ -76,16 +153,19 @@ function renderDeckDecision(room) {
 }
 
 function createRoom() {
+  unlockAudio();
   const name = getNameValue();
   if (!name) {
     alert("Enter your name first.");
     return;
   }
 
+  playSound("buttonPress");
   socket.emit("createRoom", name);
 }
 
 function joinRoom() {
+  unlockAudio();
   const name = getNameValue();
   const code = document.getElementById("roomCode").value.trim().toUpperCase();
 
@@ -94,15 +174,18 @@ function joinRoom() {
     return;
   }
 
+  playSound("buttonPress");
   roomCode = code;
   socket.emit("joinRoom", { roomCode: code, playerName: name });
 }
 
 function startGame() {
+  unlockAudio();
   if (!roomCode) {
     return;
   }
 
+  playSound("buttonPress");
   socket.emit("startGame", {
     roomCode,
     cards: cardCountSelect.value
@@ -115,12 +198,15 @@ function drawCard() {
     return;
   }
 
+  pendingDrawSound = true;
+  playSound("drawCard");
   socket.emit("drawCard", roomCode);
 }
 
 function callUNO() {
   socket.emit("uno", roomCode);
   unoButton.style.display = "none";
+  playSound("unoCall");
 }
 
 function chooseColor(color) {
@@ -130,6 +216,7 @@ function chooseColor(color) {
     return;
   }
 
+  playSound("cardPlay");
   socket.emit("playCard", {
     roomCode,
     card: pendingCard,
@@ -159,6 +246,8 @@ function updateLobby(room) {
 
 function startTurnTimer(turnEndsAt) {
   clearInterval(timerInterval);
+  timerCountdownPlayed = false;
+  stopSound("timerTick");
 
   if (!turnEndsAt) {
     timerLabel.innerText = "Time: -";
@@ -168,6 +257,12 @@ function startTurnTimer(turnEndsAt) {
   const renderTime = () => {
     const secondsLeft = Math.max(0, Math.ceil((turnEndsAt - Date.now()) / 1000));
     timerLabel.innerText = `Time: ${secondsLeft}`;
+
+    const isMyTurn = currentRoom?.players?.[currentRoom.turn]?.id === socket.id;
+    if (isMyTurn && secondsLeft === 5 && !timerCountdownPlayed) {
+      playSound("timerTick");
+      timerCountdownPlayed = true;
+    }
 
     if (secondsLeft === 0) {
       clearInterval(timerInterval);
@@ -189,6 +284,7 @@ function playCard(card) {
     return;
   }
 
+  playSound("cardPlay");
   socket.emit("playCard", { roomCode, card });
 }
 
@@ -267,6 +363,8 @@ function render(room) {
   renderPlayers(room);
   stackInfo.innerText = room.stackCount > 0 ? `Draw stack: +${room.stackCount}` : "";
   renderDeckDecision(room);
+
+  previousRoomSnapshot = room;
 }
 
 function resolveDeckDecision(action) {
@@ -278,6 +376,8 @@ function resolveDeckDecision(action) {
 }
 
 socket.on("connect", () => {
+  updateMuteButton();
+
   if (currentRoom) {
     updateLobby(currentRoom);
     render(currentRoom);
@@ -306,11 +406,21 @@ socket.on("gameStarted", () => {
   colorPicker.style.display = "none";
   deckDecisionModal.style.display = "none";
   winnerModal.style.display = "none";
+  previousRoomSnapshot = null;
+  previousCardCount = 0;
   setScreen("game");
 });
 
 socket.on("yourCards", (cards) => {
+  const cardDelta = cards.length - previousCardCount;
   myCards = cards;
+  previousCardCount = cards.length;
+
+  if (pendingDrawSound && cardDelta > 0) {
+    pendingDrawSound = false;
+  } else if (currentRoom?.started && cardDelta > 0 && currentRoom.players[currentRoom.turn]?.id === socket.id) {
+    playSound("drawCard");
+  }
 
   if (currentRoom?.started) {
     render(currentRoom);
@@ -325,11 +435,25 @@ socket.on("updateGame", (room) => {
 });
 
 socket.on("penalty", () => {
+  playSound("penalty");
   showToast("Penalty applied");
 });
 
 socket.on("deckEmpty", () => {
   showToast("Main deck is empty", 1200);
+});
+
+socket.on("invalidMove", (message) => {
+  playSound("invalidMove");
+  showToast(message || "Invalid move", 1200);
+});
+
+socket.on("unoCalled", ({ playerName }) => {
+  playSound("unoCall");
+
+  if (playerName) {
+    showToast(`${playerName} called UNO!`, 1000);
+  }
 });
 
 socket.on("roomError", (message) => {
@@ -338,12 +462,21 @@ socket.on("roomError", (message) => {
 
 socket.on("gameOver", (winnerName) => {
   clearInterval(timerInterval);
+  stopSound("timerTick");
   pendingCard = null;
   colorPicker.style.display = "none";
   deckDecisionModal.style.display = "none";
+  playSound("win");
   winnerNameElement.innerText = winnerName;
   winnerModal.style.display = "flex";
 });
+
+["click", "touchstart", "keydown"].forEach((eventName) => {
+  window.addEventListener(eventName, unlockAudio, { once: true });
+});
+
+loadMutePreference();
+updateMuteButton();
 
 window.addEventListener("resize", () => {
   if (currentRoom?.started) {
