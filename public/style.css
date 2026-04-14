@@ -168,6 +168,21 @@ button:disabled {
   background: linear-gradient(135deg, #fff6d8, #ffe19a);
 }
 
+.bot-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 14px;
+  background: linear-gradient(135deg, #d5fff0, #8df2c8);
+  color: #083624;
+}
+
+.bot-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
 .menu-actions {
   margin-bottom: 10px;
 }
