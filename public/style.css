@@ -105,6 +105,21 @@ body {
   color: var(--muted);
 }
 
+.credit {
+  position: relative;
+  z-index: 1;
+  margin: 28px auto 0;
+  text-align: center;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: rgba(230, 238, 230, 0.45);
+}
+
+.credit span {
+  color: rgba(230, 238, 230, 0.72);
+  font-weight: 600;
+}
+
 .subtitle {
   max-width: 420px;
   margin: 16px 0 0;
@@ -256,6 +271,96 @@ button:disabled {
 #stackInfo {
   margin-top: 16px;
   color: var(--accent);
+  display: inline-block;
+  transform-origin: left center;
+}
+
+#stackInfo.pulse {
+  animation: stackPulse 600ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+@keyframes stackPulse {
+  0%   { transform: scale(1); color: var(--accent); text-shadow: none; }
+  30%  { transform: scale(1.35); color: #ff8a3d; text-shadow: 0 0 16px rgba(255, 138, 61, 0.8); }
+  100% { transform: scale(1); color: var(--accent); text-shadow: none; }
+}
+
+/* Top card shake when stack grows */
+#topCard.shake > .card {
+  animation: topCardShake 460ms ease;
+}
+
+@keyframes topCardShake {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  20%  { transform: translateX(-5px) rotate(-2deg); }
+  40%  { transform: translateX(5px)  rotate(2deg); }
+  60%  { transform: translateX(-4px) rotate(-1deg); }
+  80%  { transform: translateX(4px)  rotate(1deg); }
+}
+
+/* Stack cleared: glowing ring on top card + floating hint below */
+#topCard.stack-cleared > .card {
+  animation: stackClearedRing 1.6s ease-in-out infinite;
+}
+
+@keyframes stackClearedRing {
+  0%, 100% {
+    box-shadow:
+      inset 0 0 0 3px #ffffff,
+      inset 0 0 0 4px rgba(0, 0, 0, 0.18),
+      0 12px 24px rgba(0, 0, 0, 0.28),
+      0 0 0 0 var(--glow, rgba(255, 213, 79, 0.55));
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 3px #ffffff,
+      inset 0 0 0 4px rgba(0, 0, 0, 0.18),
+      0 12px 24px rgba(0, 0, 0, 0.28),
+      0 0 0 10px var(--glow, rgba(255, 213, 79, 0.0));
+  }
+}
+
+.stack-cleared-hint {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 12px);
+  transform: translateX(-50%) translateY(4px);
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.stack-cleared-hint.show {
+  display: inline-flex;
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  animation: hintFloat 1.6s ease-in-out infinite;
+}
+
+.stack-cleared-hint .hint-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--glow, #ffd54f);
+  box-shadow: 0 0 8px var(--glow, rgba(255, 213, 79, 0.8));
+}
+
+@keyframes hintFloat {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50%      { transform: translateX(-50%) translateY(-4px); }
 }
 
 #topCard {
@@ -271,21 +376,401 @@ button:disabled {
   pointer-events: none;
 }
 
+/* -------- Static arena background (uses the custom art) -------- */
+.play-backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.arena-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 45%, #184a35 0%, #0d2d20 45%, #04130c 100%);
+}
+
+/* Soft vignette to push edges back a touch */
+.arena-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 48%, transparent 55%, rgba(0, 0, 0, 0.45) 100%);
+}
+
+/* Small centered logo on the table */
+.arena-logo {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  transform: translate(-50%, -50%);
+  width: min(24vmin, 260px);
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.95;
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.55));
+  animation: logoFloat 4.2s ease-in-out infinite;
+}
+
+@keyframes logoFloat {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50%      { transform: translate(-50%, calc(-50% - 6px)) scale(1.02); }
+}
+
+@media (max-width: 700px) {
+  .arena-logo {
+    width: min(44vmin, 200px);
+  }
+}
+
+#game {
+  position: relative;
+  background: #03100a;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* -------- Direction badge (HUD) -------- */
+.direction-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 213, 79, 0.35);
+  color: #ffd54f;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 14px rgba(255, 213, 79, 0.12);
+  transition: transform 420ms ease;
+}
+
+.direction-badge svg {
+  width: 22px;
+  height: 22px;
+}
+
+.direction-badge[data-direction="ccw"] {
+  transform: scaleX(-1);
+}
+
+.direction-badge.flipped {
+  animation: badgeFlash 620ms ease;
+}
+
+@keyframes badgeFlash {
+  0%, 100% { box-shadow: 0 0 14px rgba(255, 213, 79, 0.12); }
+  40%      { box-shadow: 0 0 24px rgba(255, 213, 79, 0.9); }
+}
+
+#game > :not(.play-backdrop) {
+  position: relative;
+  z-index: 1;
+}
+
+/* -------- Player tile with avatar + timer ring -------- */
 .player {
   position: absolute;
   transform: translate(-50%, -50%);
-  width: 120px;
-  padding: 10px 12px;
-  border-radius: 16px;
+  width: 108px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
   text-align: center;
-  white-space: pre-line;
-  background: rgba(0, 0, 0, 0.28);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+  transition: transform 320ms cubic-bezier(0.2, 0.9, 0.2, 1), filter 320ms ease;
 }
 
-.player.active {
-  color: #111;
-  background: var(--accent);
+.player-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #f4f8f1;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 3px 10px;
+  border-radius: 999px;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35);
+  max-width: 104px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-avatar {
+  position: relative;
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.35), transparent 55%),
+    var(--avatar-bg, #4a5a6a);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 255, 255, 0.18),
+    0 10px 24px rgba(0, 0, 0, 0.4);
+}
+
+.avatar-face {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
+  background: #fff;
+}
+
+.player-cards {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #fff;
+  color: #1b2a20;
+  font-weight: 800;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.4);
+  border: 2px solid #1b2a20;
+}
+
+/* SVG timer ring sitting on top of avatar */
+.timer-ring {
+  position: absolute;
+  inset: -6px;
+  width: calc(100% + 12px);
+  height: calc(100% + 12px);
+  transform: rotate(-90deg);
+  pointer-events: none;
+}
+
+.timer-ring .track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 4;
+}
+
+.timer-ring .progress {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  transition: stroke-dashoffset 120ms linear, stroke 200ms ease;
+}
+
+.player.active .timer-ring .progress {
+  stroke: #ffd54f;
+  filter: drop-shadow(0 0 6px rgba(255, 213, 79, 0.7));
+}
+
+.player.active .player-avatar {
+  animation: activePulse 1.4s ease-in-out infinite;
+}
+
+.player.active .player-name {
+  color: #1b2a20;
+  background: #ffd54f;
+  border-color: #ffd54f;
+}
+
+@keyframes activePulse {
+  0%, 100% { box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.18), 0 10px 24px rgba(0, 0, 0, 0.4), 0 0 0 0 rgba(255, 213, 79, 0.6); }
+  50%      { box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.3),  0 10px 24px rgba(0, 0, 0, 0.4), 0 0 0 8px rgba(255, 213, 79, 0.0); }
+}
+
+/* -------- Big power-card animations (center of screen) -------- */
+.power-effect {
+  position: fixed;
+  left: 50%;
+  top: 44%;
+  transform: translate(-50%, -50%);
+  width: 260px;
+  height: 260px;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 1200;
+}
+
+.power-effect.show {
+  animation: fxFrame 1200ms ease forwards;
+}
+
+@keyframes fxFrame {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.fx {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.fx svg {
+  width: 180px;
+  height: 180px;
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.5));
+}
+
+.fx-label {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8), 0 0 16px currentColor;
+  white-space: nowrap;
+}
+
+.fx-big {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Fredoka", "Impact", sans-serif;
+  font-size: 4.6rem;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 4px 0 rgba(0, 0, 0, 0.35), 0 0 18px rgba(0, 0, 0, 0.7);
+}
+
+/* Skip: spin-in + shake */
+.power-effect.show .fx-skip svg {
+  animation: skipPop 900ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+@keyframes skipPop {
+  0%   { transform: scale(0.2) rotate(-40deg); opacity: 0; }
+  40%  { transform: scale(1.25) rotate(10deg); opacity: 1; }
+  55%  { transform: scale(1.15) rotate(-6deg); }
+  70%  { transform: scale(1.1)  rotate(4deg); }
+  100% { transform: scale(1)    rotate(0deg); opacity: 1; }
+}
+
+/* Reverse: rotate 540° */
+.power-effect.show .fx-reverse svg {
+  animation: reverseSpin 1100ms ease;
+}
+@keyframes reverseSpin {
+  0%   { transform: scale(0.4) rotate(0deg); opacity: 0; }
+  30%  { transform: scale(1.1) rotate(360deg); opacity: 1; }
+  100% { transform: scale(1)   rotate(540deg); opacity: 1; }
+}
+
+/* +2: two mini cards fly in + big number */
+.fx-plus2 {
+  --fx-color: #ffd54f;
+}
+.mini-card {
+  position: absolute;
+  width: 70px;
+  height: 100px;
+  border-radius: 10px;
+  background: var(--fx-color);
+  box-shadow: inset 0 0 0 3px #fff, 0 10px 20px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+}
+.power-effect.show .mc1 { animation: miniCardA 900ms ease forwards; }
+.power-effect.show .mc2 { animation: miniCardB 900ms 120ms ease forwards; }
+@keyframes miniCardA {
+  0%   { transform: translate(-140px, -40px) rotate(-45deg); opacity: 0; }
+  60%  { transform: translate(-50px, 0) rotate(-14deg); opacity: 1; }
+  100% { transform: translate(-40px, 0) rotate(-10deg); opacity: 1; }
+}
+@keyframes miniCardB {
+  0%   { transform: translate(140px, -40px) rotate(45deg); opacity: 0; }
+  60%  { transform: translate(50px, 0) rotate(14deg); opacity: 1; }
+  100% { transform: translate(40px, 0) rotate(10deg); opacity: 1; }
+}
+.power-effect.show .fx-plus2 .fx-big {
+  animation: numberPop 900ms 180ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+
+/* +4: four color chips burst */
+.fx-plus4 {
+  position: relative;
+}
+.color-burst {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  place-items: center;
+  gap: 18px;
+  padding: 40px;
+}
+.color-burst span {
+  width: 70px;
+  height: 70px;
+  border-radius: 18px;
+  box-shadow: inset 0 0 0 3px #fff, 0 10px 20px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+}
+.power-effect.show .color-burst span {
+  animation: burstChip 900ms cubic-bezier(0.2, 0.9, 0.2, 1) forwards;
+}
+.power-effect.show .color-burst span:nth-child(1) { animation-delay: 0ms; }
+.power-effect.show .color-burst span:nth-child(2) { animation-delay: 80ms; }
+.power-effect.show .color-burst span:nth-child(3) { animation-delay: 160ms; }
+.power-effect.show .color-burst span:nth-child(4) { animation-delay: 240ms; }
+@keyframes burstChip {
+  0%   { transform: scale(0.2) rotate(-30deg); opacity: 0; }
+  100% { transform: scale(1)   rotate(0deg);   opacity: 1; }
+}
+.power-effect.show .fx-plus4 .fx-big {
+  animation: numberPop 900ms 320ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+
+@keyframes numberPop {
+  0%   { transform: scale(0.2); opacity: 0; }
+  60%  { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Wild: color wheel spin */
+.power-effect.show .wild-wheel {
+  animation: wheelSpin 1100ms ease;
+}
+@keyframes wheelSpin {
+  0%   { transform: scale(0.3) rotate(0deg); opacity: 0; }
+  40%  { transform: scale(1.1) rotate(360deg); opacity: 1; }
+  100% { transform: scale(1)   rotate(540deg); opacity: 1; }
+}
+
+/* Reverse icon on card faces */
+.reverse-icon {
+  width: 2.6rem;
+  height: 2.6rem;
+  display: block;
+}
+.card-corner .reverse-icon {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+.card-value[data-reverse] {
+  padding: 2px;
 }
 
 #hand {
@@ -294,17 +779,34 @@ button:disabled {
   right: 0;
   bottom: 0;
   display: flex;
-  gap: 10px;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 0;
   overflow-x: auto;
-  padding: 14px 16px 18px;
-  background: rgba(3, 8, 6, 0.88);
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  overflow-y: visible;
+  padding: 28px 40px 18px;
+  background: linear-gradient(180deg, rgba(3, 8, 6, 0) 0%, rgba(3, 8, 6, 0.7) 40%, rgba(3, 8, 6, 0.95) 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  perspective: 900px;
+}
+
+/* Roomy hand spacing (like the reference art) */
+#hand > .card {
+  transform-origin: bottom center;
+  z-index: 1;
+}
+#hand > .card + .card {
+  margin-left: 10px;
+}
+#hand > .card:hover:not(:disabled) {
+  transform: translateY(-18px) scale(1.08);
+  z-index: 20;
 }
 
 .card {
   flex: 0 0 auto;
-  width: 74px;
-  height: 108px;
+  width: 88px;
+  height: 126px;
   border: 0;
   border-radius: 14px;
   display: inline-flex;
@@ -466,11 +968,11 @@ button:disabled {
   z-index: 1;
 }
 
-/* -------- Play area: deck + discard side by side -------- */
+/* -------- Play area: deck + discard side by side (top-center slot) -------- */
 #playArea {
   position: absolute;
   left: 50%;
-  top: 46%;
+  top: 13%;
   transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
@@ -488,14 +990,14 @@ button:disabled {
   left: auto;
   top: auto;
   transform: none;
-  width: 74px;
-  height: 108px;
+  width: 104px;
+  height: 148px;
 }
 
 .deck-pile {
   position: relative;
-  width: 74px;
-  height: 108px;
+  width: 104px;
+  height: 148px;
   cursor: pointer;
   transition: transform 180ms ease;
 }
@@ -525,8 +1027,8 @@ button:disabled {
 /* -------- Flying card overlay (draw + play animations) -------- */
 .flying-card {
   position: fixed;
-  width: 74px;
-  height: 108px;
+  width: 92px;
+  height: 132px;
   perspective: 800px;
   pointer-events: none;
   z-index: 2000;
@@ -819,12 +1321,67 @@ button:disabled {
   }
 
   .player {
-    width: 90px;
-    font-size: 0.85rem;
+    width: 86px;
+  }
+
+  .player-avatar {
+    width: 60px;
+    height: 60px;
+  }
+
+  .player-cards {
+    min-width: 22px;
+    height: 22px;
+    font-size: 0.75rem;
+  }
+
+  .player-name {
+    font-size: 0.72rem;
+    padding: 2px 8px;
+    max-width: 86px;
   }
 
   #playArea {
-    top: 42%;
-    gap: 18px;
+    top: 10%;
+    gap: 12px;
+  }
+
+  #topCard,
+  .deck-pile {
+    width: 84px;
+    height: 120px;
+  }
+
+  .card {
+    width: 70px;
+    height: 100px;
+    font-size: 1.4rem;
+  }
+
+  #hand > .card + .card {
+    margin-left: 6px;
+  }
+
+  #hand {
+    padding: 18px 10px 14px;
+  }
+
+  .table-frame {
+    width: 94vw;
+    height: 56vh;
+  }
+
+  .power-effect {
+    width: 200px;
+    height: 200px;
+  }
+
+  .fx svg {
+    width: 140px;
+    height: 140px;
+  }
+
+  .fx-big {
+    font-size: 3.6rem;
   }
 }
