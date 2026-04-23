@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: last-card-battle
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
