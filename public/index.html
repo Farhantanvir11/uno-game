@@ -45,21 +45,51 @@
     <p class="credit">Designed &amp; developed by <span>Farhan Tanvir</span></p>
   </div>
 
-  <div id="lobby" class="screen panel" style="display:none;">
-    <h2 id="roomTitle"></h2>
-    <p id="roomStatus"></p>
+  <div id="lobby" class="screen lobby-screen" style="display:none;">
+    <div class="lobby-card">
+      <div class="lobby-hero">
+        <div class="lobby-hero-row">
+          <span class="lobby-kicker">Battle Room</span>
+          <span class="lobby-status-chip" id="roomStatus">Players: 0/5</span>
+        </div>
+        <div class="lobby-code-row">
+          <h2 class="lobby-code" id="roomTitle">——</h2>
+          <button class="lobby-copy" id="copyCodeBtn" title="Copy room code" onclick="copyRoomCode()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="11" height="11" rx="2"/>
+              <path d="M5 15V5a2 2 0 0 1 2-2h10"/>
+            </svg>
+          </button>
+        </div>
+        <p class="lobby-hint">Share the room code with friends so they can join the battle.</p>
+      </div>
 
-    <label for="cardCount">Starting cards</label>
-    <select id="cardCount">
-      <option value="5">5</option>
-      <option value="7" selected>7</option>
-      <option value="10">10</option>
-    </select>
+      <div class="lobby-section">
+        <h3 class="lobby-section-title">Players</h3>
+        <div class="lobby-slots" id="lobbyPlayers"></div>
+      </div>
 
-    <button id="startBtn" onclick="startGame()">Start Game</button>
+      <div class="lobby-section lobby-settings">
+        <label for="cardCount" class="lobby-section-title">Starting cards</label>
+        <div class="lobby-pill-group" id="cardCountPills">
+          <button type="button" class="lobby-pill" data-value="5">5</button>
+          <button type="button" class="lobby-pill is-active" data-value="7">7</button>
+          <button type="button" class="lobby-pill" data-value="10">10</button>
+        </div>
+        <select id="cardCount" hidden>
+          <option value="5">5</option>
+          <option value="7" selected>7</option>
+          <option value="10">10</option>
+        </select>
+      </div>
 
-    <h3>Players</h3>
-    <ul id="lobbyPlayers"></ul>
+      <button id="startBtn" class="lobby-start-btn" onclick="startGame()">
+        <span>Start Game</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 6 15 12 9 18"/>
+        </svg>
+      </button>
+    </div>
   </div>
 
   <div id="game" class="screen" style="display:none;">
