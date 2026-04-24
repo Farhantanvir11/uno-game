@@ -119,8 +119,12 @@ function playSound(name) {
     return;
   }
 
-  audio.currentTime = 0;
-  audio.play().catch(() => {});
+  // Clone the audio node so overlapping plays don't abort each other.
+  // Single-instance <audio> elements silently drop a second play() while
+  // the first is still resolving, which caused missed SFX.
+  const instance = audio.cloneNode(true);
+  instance.volume = audio.volume;
+  instance.play().catch(() => {});
 }
 
 function stopSound(name) {
@@ -220,7 +224,8 @@ function startGame() {
 
 function drawCard() {
   if (!currentRoom || currentRoom.players[currentRoom.turn]?.id !== socket.id) {
-    alert("It is not your turn.");
+    showToast("Not your turn", 900);
+    playSound("invalidMove");
     return;
   }
 
@@ -872,6 +877,13 @@ socket.on("gameStarted", () => {
   winnerModal.style.display = "none";
   previousRoomSnapshot = null;
   previousCardCount = 0;
+  previousHandLength = 0;
+  lastTopCardKey = "";
+  stackClearedTopKey = null;
+  lastTickSecond = -1;
+  pendingCard = null;
+  pendingCardElement = null;
+  suppressNextDrawFlight = true;
   setScreen("game");
 });
 
@@ -915,6 +927,15 @@ socket.on("deckEmpty", () => {
 socket.on("invalidMove", (message) => {
   playSound("invalidMove");
   showToast(message || "Invalid move", 1200);
+  // Restore any card hidden by the optimistic play-flight animation
+  if (pendingCardElement) {
+    pendingCardElement.style.visibility = "";
+    pendingCardElement = null;
+  }
+  handElement.querySelectorAll(".card").forEach((el) => {
+    el.style.visibility = "";
+  });
+  pendingCard = null;
 });
 
 socket.on("unoCalled", ({ playerName }) => {
