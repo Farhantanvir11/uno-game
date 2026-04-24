@@ -1311,8 +1311,7 @@ button:disabled {
     padding-top: 18px;
   }
 
-  .hud,
-  .controls {
+  .hud {
     flex-direction: column;
     align-items: stretch;
   }
@@ -1320,6 +1319,51 @@ button:disabled {
   .hud-meta {
     width: 100%;
     justify-content: space-between;
+  }
+
+  /* Floating circular Draw button on phones (always reachable with thumb) */
+  .controls {
+    position: fixed;
+    right: 14px;
+    bottom: 165px;
+    width: auto;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 50;
+    pointer-events: none;
+  }
+
+  .controls > button {
+    pointer-events: auto;
+  }
+
+  #drawBtn {
+    width: 64px;
+    height: 64px;
+    min-width: 0;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 0.72rem;
+    font-weight: 800;
+    line-height: 1.05;
+    text-align: center;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+  }
+
+  #drawBtn:disabled {
+    opacity: 0.45;
+  }
+
+  #unoBtn {
+    width: 64px;
+    height: 64px;
+    min-width: 0;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 0.7rem;
+    font-weight: 800;
+    line-height: 1.05;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
   }
 
   .player {
