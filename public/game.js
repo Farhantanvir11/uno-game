@@ -113,6 +113,9 @@ function toggleMute() {
   updateMuteButton();
 }
 
+// Track active clones per sound so stopSound() can actually silence them.
+const activeSoundInstances = {};
+
 function playSound(name) {
   const audio = soundEffects[name];
   if (!audio || !audioUnlocked || isMuted) {
@@ -124,17 +127,32 @@ function playSound(name) {
   // the first is still resolving, which caused missed SFX.
   const instance = audio.cloneNode(true);
   instance.volume = audio.volume;
-  instance.play().catch(() => {});
+
+  if (!activeSoundInstances[name]) activeSoundInstances[name] = new Set();
+  activeSoundInstances[name].add(instance);
+
+  const cleanup = () => activeSoundInstances[name]?.delete(instance);
+  instance.addEventListener("ended", cleanup);
+  instance.addEventListener("pause", cleanup);
+
+  instance.play().catch(cleanup);
 }
 
 function stopSound(name) {
   const audio = soundEffects[name];
-  if (!audio) {
-    return;
+  if (audio) {
+    audio.pause();
+    audio.currentTime = 0;
   }
 
-  audio.pause();
-  audio.currentTime = 0;
+  const active = activeSoundInstances[name];
+  if (active) {
+    active.forEach((instance) => {
+      instance.pause();
+      instance.currentTime = 0;
+    });
+    active.clear();
+  }
 }
 
 function closeWinnerModal() {

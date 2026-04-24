@@ -1920,11 +1920,17 @@ button:disabled {
     font-size: 1.4rem;
   }
 
-  /* Fanned/overlapping hand so 12+ cards are visible without scrolling */
+  /* Fanned/overlapping hand so 12+ cards are visible without scrolling.
+     When the hand grows beyond the fan, allow horizontal scroll. */
   #hand {
     padding: 20px 14px 12px;
-    overflow-x: hidden;
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
+
+  #hand::-webkit-scrollbar { display: none; }
 
   #hand > .card + .card {
     margin-left: -38px;
