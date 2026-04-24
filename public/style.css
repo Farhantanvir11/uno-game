@@ -1915,17 +1915,30 @@ button:disabled {
   }
 
   .card {
-    width: 70px;
-    height: 100px;
+    width: 68px;
+    height: 96px;
     font-size: 1.4rem;
   }
 
-  #hand > .card + .card {
-    margin-left: 6px;
+  /* Fanned/overlapping hand so 12+ cards are visible without scrolling */
+  #hand {
+    padding: 20px 14px 12px;
+    overflow-x: hidden;
   }
 
-  #hand {
-    padding: 18px 10px 14px;
+  #hand > .card + .card {
+    margin-left: -38px;
+  }
+
+  #hand > .card {
+    transition: transform 180ms ease, margin 180ms ease, z-index 0s;
+  }
+
+  #hand > .card:hover:not(:disabled),
+  #hand > .card:focus-visible:not(:disabled),
+  #hand > .card:active:not(:disabled) {
+    transform: translateY(-16px) scale(1.08);
+    z-index: 30;
   }
 
   .table-frame {
