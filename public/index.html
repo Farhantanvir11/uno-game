@@ -127,7 +127,7 @@
     <div id="players"></div>
     <div id="powerEffect" class="power-effect" aria-hidden="true"></div>
 
-    <div id="colorPicker" style="display:none;">
+    <div id="colorPicker" style="display:none;" onclick="if(event.target===this) cancelColorPicker()">
       <button class="color-btn red" onclick="chooseColor('red')" aria-label="Choose red"></button>
       <button class="color-btn green" onclick="chooseColor('green')" aria-label="Choose green"></button>
       <button class="color-btn blue" onclick="chooseColor('blue')" aria-label="Choose blue"></button>
