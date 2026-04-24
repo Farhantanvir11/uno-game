@@ -405,7 +405,7 @@ button:disabled {
   left: 50%;
   top: 48%;
   transform: translate(-50%, -50%);
-  width: min(24vmin, 260px);
+  width: min(34vmin, 360px);
   height: auto;
   pointer-events: none;
   user-select: none;
@@ -421,7 +421,7 @@ button:disabled {
 
 @media (max-width: 700px) {
   .arena-logo {
-    width: min(44vmin, 200px);
+    width: min(56vmin, 280px);
   }
 }
 
@@ -1000,6 +1000,7 @@ button:disabled {
   height: 148px;
   cursor: pointer;
   transition: transform 180ms ease;
+  z-index: 2;
 }
 
 .deck-pile:hover {
@@ -1010,6 +1011,7 @@ button:disabled {
   position: absolute;
   inset: 0;
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
 }
 
 .deck-pile .card-back:nth-child(1) {
