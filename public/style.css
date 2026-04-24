@@ -779,10 +779,11 @@ button:disabled {
   right: 0;
   bottom: 0;
   display: flex;
-  justify-content: center;
+  justify-content: safe center;
   align-items: flex-end;
   gap: 0;
   overflow-x: auto;
+  scroll-padding-inline: 14px;
   overflow-y: visible;
   padding: 28px 40px 18px;
   background: linear-gradient(180deg, rgba(3, 8, 6, 0) 0%, rgba(3, 8, 6, 0.7) 40%, rgba(3, 8, 6, 0.95) 100%);
