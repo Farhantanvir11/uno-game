@@ -14,6 +14,7 @@ let pendingCardElement = null;
 let suppressNextDrawFlight = false;
 let audioUnlocked = false;
 let pendingDrawSound = false;
+let isPlayingCard = false;
 let isMuted = false;
 let lastTickSecond = -1;
 const MUTE_STORAGE_KEY = "last-card-battle-muted";
@@ -266,19 +267,30 @@ function chooseColor(color) {
   }
 
   playSound("cardPlay");
+  isPlayingCard = true;
 
   const card = pendingCard;
   const sourceEl = pendingCardElement;
   pendingCard = null;
   pendingCardElement = null;
 
-  const emit = () => socket.emit("playCard", { roomCode, card, chosenColor: color });
+  const emit = () => {
+    socket.emit("playCard", { roomCode, card, chosenColor: color });
+    isPlayingCard = false;
+  };
 
   if (sourceEl && document.body.contains(sourceEl)) {
     animatePlayFlight(sourceEl, { ...card, color }, emit);
   } else {
     emit();
   }
+}
+
+function cancelColorPicker() {
+  if (colorPicker.style.display === "none") return;
+  colorPicker.style.display = "none";
+  pendingCard = null;
+  pendingCardElement = null;
 }
 
 function updateLobby(room) {
@@ -382,6 +394,7 @@ function playCard(card, sourceEl) {
   if (!currentRoom || currentRoom.players[currentRoom.turn]?.id !== socket.id) {
     return;
   }
+  if (isPlayingCard) return; // guard against rapid double-taps during flight
 
   if (card.value === "wild" || card.value === "+4") {
     pendingCard = card;
@@ -391,12 +404,16 @@ function playCard(card, sourceEl) {
   }
 
   playSound("cardPlay");
-  if (sourceEl) {
-    animatePlayFlight(sourceEl, card, () => {
-      socket.emit("playCard", { roomCode, card });
-    });
-  } else {
+  isPlayingCard = true;
+  const emit = () => {
     socket.emit("playCard", { roomCode, card });
+    isPlayingCard = false;
+  };
+
+  if (sourceEl) {
+    animatePlayFlight(sourceEl, card, emit);
+  } else {
+    emit();
   }
 }
 
@@ -901,6 +918,8 @@ socket.on("gameStarted", () => {
   lastTickSecond = -1;
   pendingCard = null;
   pendingCardElement = null;
+  pendingDrawSound = false;
+  isPlayingCard = false;
   suppressNextDrawFlight = true;
   setScreen("game");
 });
@@ -954,6 +973,8 @@ socket.on("invalidMove", (message) => {
     el.style.visibility = "";
   });
   pendingCard = null;
+  isPlayingCard = false;
+  pendingDrawSound = false;
 });
 
 socket.on("unoCalled", ({ playerName }) => {
@@ -965,7 +986,8 @@ socket.on("unoCalled", ({ playerName }) => {
 });
 
 socket.on("roomError", (message) => {
-  alert(message);
+  showToast(message || "Room error", 1600);
+  playSound("invalidMove");
 });
 
 socket.on("gameOver", (winnerName) => {
@@ -981,6 +1003,10 @@ socket.on("gameOver", (winnerName) => {
 
 ["click", "touchstart", "keydown"].forEach((eventName) => {
   window.addEventListener(eventName, unlockAudio, { once: true });
+});
+
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") cancelColorPicker();
 });
 
 loadMutePreference();
