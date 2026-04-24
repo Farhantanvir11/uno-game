@@ -15,7 +15,7 @@ let suppressNextDrawFlight = false;
 let audioUnlocked = false;
 let pendingDrawSound = false;
 let isMuted = false;
-let timerCountdownPlayed = false;
+let lastTickSecond = -1;
 const MUTE_STORAGE_KEY = "last-card-battle-muted";
 
 const menuScreen = document.getElementById("menu");
@@ -328,7 +328,7 @@ document.addEventListener("click", (e) => {
 
 function startTurnTimer(turnEndsAt) {
   clearInterval(timerInterval);
-  timerCountdownPlayed = false;
+  lastTickSecond = -1;
   stopSound("timerTick");
 
   if (!turnEndsAt) {
@@ -341,10 +341,9 @@ function startTurnTimer(turnEndsAt) {
     timerLabel.innerText = `Time: ${secondsLeft}`;
     updateActiveTimerRing();
 
-    const isMyTurn = currentRoom?.players?.[currentRoom.turn]?.id === socket.id;
-    if (isMyTurn && secondsLeft === 5 && !timerCountdownPlayed) {
+    if (secondsLeft <= 5 && secondsLeft > 0 && secondsLeft !== lastTickSecond) {
       playSound("timerTick");
-      timerCountdownPlayed = true;
+      lastTickSecond = secondsLeft;
     }
 
     if (secondsLeft === 0) {
