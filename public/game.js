@@ -261,20 +261,70 @@ function chooseColor(color) {
 function updateLobby(room) {
   currentRoom = room;
   roomCode = room.roomCode;
-  roomTitle.innerText = `Room: ${room.roomCode}`;
-  roomStatus.innerText = `Players: ${room.players.length}/5`;
+  roomTitle.innerText = room.roomCode;
+  roomStatus.innerText = `${room.players.length}/5 Players`;
   roomLabel.innerText = `Room ${room.roomCode}`;
   startButton.disabled = socket.id !== room.hostId || room.players.length < 2;
 
   lobbyPlayers.innerHTML = "";
 
-  room.players.forEach((player) => {
-    const item = document.createElement("li");
-    const hostLabel = player.id === room.hostId ? " (Host)" : "";
-    item.innerText = `${player.name}${hostLabel}`;
-    lobbyPlayers.appendChild(item);
-  });
+  const MAX_SLOTS = 5;
+  for (let i = 0; i < MAX_SLOTS; i += 1) {
+    const player = room.players[i];
+    const slot = document.createElement("div");
+    slot.className = "lobby-slot";
+
+    if (player) {
+      const isHost = player.id === room.hostId;
+      const isMe = player.id === socket.id;
+      const { url, color } = getAvatarFor(player);
+      slot.classList.add("is-filled");
+      if (isHost) slot.classList.add("is-host");
+      slot.innerHTML = `
+        <div class="slot-avatar" style="--avatar-bg:${color};">
+          <img src="${url}" alt="" />
+          ${isHost ? '<span class="slot-crown" title="Host">\u2605</span>' : ""}
+        </div>
+        <div class="slot-name">${player.name}${isMe ? " (You)" : ""}</div>
+        <div class="slot-tag">${isHost ? "Host" : "Ready"}</div>
+      `;
+    } else {
+      slot.classList.add("is-empty");
+      slot.innerHTML = `
+        <div class="slot-avatar slot-avatar-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </div>
+        <div class="slot-name">Waiting&hellip;</div>
+        <div class="slot-tag">Open slot</div>
+      `;
+    }
+
+    lobbyPlayers.appendChild(slot);
+  }
 }
+
+function copyRoomCode() {
+  if (!roomCode) return;
+  try {
+    navigator.clipboard.writeText(roomCode);
+    showToast("Room code copied", 900);
+  } catch {
+    showToast(roomCode, 1200);
+  }
+}
+
+document.addEventListener("click", (e) => {
+  const pill = e.target.closest("#cardCountPills .lobby-pill");
+  if (!pill) return;
+  const group = pill.parentElement;
+  group.querySelectorAll(".lobby-pill").forEach((p) => p.classList.remove("is-active"));
+  pill.classList.add("is-active");
+  const select = document.getElementById("cardCount");
+  if (select) select.value = pill.dataset.value;
+});
 
 function startTurnTimer(turnEndsAt) {
   clearInterval(timerInterval);
