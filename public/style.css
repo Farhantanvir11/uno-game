@@ -2461,3 +2461,379 @@ body:not([data-screen="game"]) #winnerModal {
   0%, 100% { transform: translateX(-50%) translateY(0); }
   50%      { transform: translateX(-50%) translateY(-3px); }
 }
+
+/* -------- Leave buttons -------- */
+.hud-leave {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(229, 57, 53, 0.18) !important;
+  border-color: rgba(229, 57, 53, 0.45) !important;
+  color: #ffb4b4 !important;
+}
+
+.hud-leave svg { width: 14px; height: 14px; }
+
+.hud-leave:hover {
+  background: rgba(229, 57, 53, 0.32) !important;
+  color: #fff !important;
+}
+
+.lobby-leave {
+  margin-top: 14px;
+  border-color: rgba(229, 57, 53, 0.4) !important;
+  color: rgba(255, 180, 180, 0.85) !important;
+}
+
+.lobby-leave:hover {
+  background: rgba(229, 57, 53, 0.16) !important;
+  color: #fff !important;
+  border-color: rgba(229, 57, 53, 0.7) !important;
+}
+
+@media (max-width: 480px) {
+  .hud-leave span,
+  .hud-leave { font-size: 0.78rem; }
+}
+
+/* -------- Winner modal: rematch + back row -------- */
+.winner-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.winner-rematch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffe680, #f5b400);
+  color: #2a1600;
+  font-weight: 800;
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(245, 180, 0, 0.4);
+  transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+
+.winner-rematch svg { width: 18px; height: 18px; }
+
+.winner-rematch:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(245, 180, 0, 0.55);
+}
+
+.winner-rematch:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.winner-close {
+  padding: 12px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.78);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.winner-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+/* -------- Music toggle (front page) -------- */
+.music-toggle {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 800;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 213, 79, 0.35);
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  color: #ffd54f;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.music-toggle:hover { transform: translateY(-1px) scale(1.06); background: rgba(0, 0, 0, 0.65); }
+
+.music-toggle .music-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+  animation: musicNotePulse 1.6s ease-in-out infinite;
+}
+
+.music-toggle.is-off {
+  color: rgba(255, 255, 255, 0.55);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.music-toggle.is-off .music-icon { animation: none; opacity: 0.5; }
+
+@keyframes musicNotePulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.2); }
+}
+
+body[data-screen="game"] .music-toggle,
+body[data-screen="lobby"] .music-toggle { display: none; }
+
+@media (max-width: 480px) {
+  .music-toggle { top: 10px; right: 10px; width: 32px; height: 32px; }
+  .music-toggle .music-icon { font-size: 1rem; }
+}
+
+/* -------- Your Turn banner -------- */
+.your-turn-banner {
+  position: fixed;
+  top: 78px;
+  left: 50%;
+  transform: translate(-50%, -16px);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 22px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffe680, #f5b400);
+  color: #2a1600;
+  font-weight: 800;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 0 12px 28px rgba(245, 180, 0, 0.5), 0 0 24px rgba(255, 213, 79, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 950;
+}
+
+.your-turn-banner.show {
+  animation: ytbShow 1.6s cubic-bezier(0.18, 0.7, 0.3, 1) forwards;
+}
+
+.ytb-bolt {
+  font-size: 1.2rem;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.25));
+}
+
+@keyframes ytbShow {
+  0%   { opacity: 0; transform: translate(-50%, -36px) scale(0.85); }
+  20%  { opacity: 1; transform: translate(-50%, 0)     scale(1.05); }
+  35%  {              transform: translate(-50%, 0)     scale(1); }
+  85%  { opacity: 1; transform: translate(-50%, 0)     scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -10px) scale(0.95); }
+}
+
+body:not([data-screen="game"]) .your-turn-banner { display: none; }
+
+@media (max-width: 480px) {
+  .your-turn-banner { top: 64px; padding: 8px 18px; font-size: 0.88rem; }
+}
+
+/* -------- Emoji FAB (thumb zone, bottom-right above hand) -------- */
+.emoji-fab {
+  position: fixed;
+  right: 14px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 110px);
+  z-index: 950;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: 1px solid rgba(255, 213, 79, 0.35);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+  font-size: 1.6rem;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+  transition: transform 160ms ease, background 160ms ease;
+  animation: reactionTogglePulse 3.4s ease-in-out infinite;
+}
+
+.emoji-fab:hover { transform: scale(1.08); background: rgba(0, 0, 0, 0.75); }
+.emoji-fab:active { transform: scale(0.94); }
+
+/* Show only during gameplay */
+body:not([data-screen="game"]) .emoji-fab,
+body:not([data-screen="game"]) .reaction-popover { display: none !important; }
+
+@media (max-width: 480px) {
+  .emoji-fab { width: 48px; height: 48px; font-size: 1.45rem; right: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 100px); }
+}
+
+.reaction-popover {
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  background: rgba(10, 22, 14, 0.92);
+  border: 1px solid rgba(255, 213, 79, 0.28);
+  border-radius: 999px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+  animation: popoverPop 280ms cubic-bezier(0.2, 1.4, 0.4, 1);
+  transform-origin: bottom right;
+  z-index: 950;
+}
+
+.reaction-popover[hidden] { display: none; }
+
+@keyframes popoverPop {
+  0%   { opacity: 0; transform: scale(0.4) translateY(8px); }
+  60%  { opacity: 1; transform: scale(1.06) translateY(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.reaction-popover button {
+  width: 44px;
+  height: 44px;
+  padding: 0 0 2px;             /* nudge emoji glyph upward 2px to true-center */
+  border-radius: 50%;
+  border: 0;
+  background: transparent;
+  font-size: 22px;
+  line-height: 1;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 180ms cubic-bezier(0.2, 1.6, 0.4, 1), background 140ms ease;
+  animation: emojiIn 380ms cubic-bezier(0.2, 1.6, 0.4, 1) backwards;
+}
+
+/* Stagger entrance for each emoji */
+.reaction-popover button:nth-child(1) { animation-delay: 40ms;  }
+.reaction-popover button:nth-child(2) { animation-delay: 90ms;  }
+.reaction-popover button:nth-child(3) { animation-delay: 140ms; }
+.reaction-popover button:nth-child(4) { animation-delay: 190ms; }
+.reaction-popover button:nth-child(5) { animation-delay: 240ms; }
+.reaction-popover button:nth-child(6) { animation-delay: 290ms; }
+
+@keyframes emojiIn {
+  0%   { opacity: 0; transform: translateY(10px) scale(0.4); }
+  100% { opacity: 1; transform: translateY(0)    scale(1);   }
+}
+
+.reaction-popover button:hover {
+  transform: scale(1.35) rotate(-6deg);
+  background: rgba(255, 213, 79, 0.18);
+}
+
+.reaction-popover button:active {
+  transform: scale(0.92);
+}
+
+/* Subtle idle pulse on toggle so it draws the eye */
+.reaction-toggle {
+  animation: reactionTogglePulse 3.4s ease-in-out infinite;
+}
+
+@keyframes reactionTogglePulse {
+  0%, 100% { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4), 0 0 0 0 rgba(255, 213, 79, 0); }
+  50%      { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4), 0 0 0 8px rgba(255, 213, 79, 0.12); }
+}
+
+.reaction-float {
+  position: fixed;
+  z-index: 1300;
+  font-size: 3rem;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: reactionFloat 2.2s cubic-bezier(0.18, 0.7, 0.3, 1) forwards;
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.5));
+  --rx: 0px;
+  --rot: 0deg;
+}
+
+@keyframes reactionFloat {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.3) rotate(0deg); }
+  15%  { opacity: 1; transform: translate(-50%, -55%) scale(1.4) rotate(calc(var(--rot) * 0.6)); }
+  30%  {              transform: translate(calc(-50% + var(--rx) * 0.3), -80%)  scale(1.1) rotate(var(--rot)); }
+  70%  { opacity: 1; transform: translate(calc(-50% + var(--rx) * 0.7), -150%) scale(1)   rotate(calc(var(--rot) * 1.4)); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--rx)),       -220%) scale(0.7) rotate(calc(var(--rot) * 2)); }
+}
+
+/* Burst ring behind emoji */
+.reaction-ring {
+  position: fixed;
+  z-index: 1299;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 213, 79, 0.85);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: reactionRing 0.7s ease-out forwards;
+}
+
+@keyframes reactionRing {
+  0%   { opacity: 0.9; transform: translate(-50%, -50%) scale(0.4); border-width: 4px; }
+  100% { opacity: 0;   transform: translate(-50%, -50%) scale(7);   border-width: 1px; }
+}
+
+/* Mini sparkles flying outward */
+.reaction-spark {
+  position: fixed;
+  z-index: 1298;
+  font-size: 1rem;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: reactionSpark 0.9s ease-out forwards;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+}
+
+@keyframes reactionSpark {
+  0%   { opacity: 0;   transform: translate(-50%, -50%) scale(0.4); }
+  20%  { opacity: 1;   transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0;   transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.6); }
+}
+
+@media (max-width: 480px) {
+  .reaction-dock { right: 10px; bottom: 10px; }
+  .reaction-toggle { width: 42px; height: 42px; font-size: 1.25rem; }
+  .reaction-popover button { width: 38px; height: 38px; font-size: 1.25rem; }
+}
+
+/* -------- Full-screen confetti burst on win -------- */
+.confetti-burst {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1200;
+  overflow: hidden;
+}
+
+.confetti-burst span {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 14px;
+  border-radius: 2px;
+  transform: translate(-50%, -50%);
+  animation-name: confettiBurst;
+  animation-timing-function: cubic-bezier(0.18, 0.7, 0.3, 1);
+  animation-fill-mode: forwards;
+  opacity: 0.95;
+}
+
+@keyframes confettiBurst {
+  0%   { transform: translate(-50%, -50%) rotate(0deg); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) rotate(var(--rot)); opacity: 0; }
+}

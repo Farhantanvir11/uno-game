@@ -87,14 +87,46 @@ bgm.loop = true;
 bgm.volume = 0.35;
 bgm.preload = "auto";
 
+const MUSIC_STORAGE_KEY = "lcb-music-muted";
+const BGM_BY_MASTER_KEY = "lcb-bgm-muted-by-master";
+let isMusicMuted = false;
+let bgmMutedByMaster = false;
+try {
+  isMusicMuted = window.localStorage.getItem(MUSIC_STORAGE_KEY) === "true";
+  bgmMutedByMaster = window.localStorage.getItem(BGM_BY_MASTER_KEY) === "true";
+} catch {}
+
 function updateBgmPlayback() {
-  if (!audioUnlocked || isMuted) {
+  if (!audioUnlocked || isMusicMuted) {
     bgm.pause();
     return;
   }
   if (bgm.paused) {
     bgm.play().catch(() => {});
   }
+}
+
+function updateMusicButton() {
+  const label = document.getElementById("musicToggleLabel");
+  const btn = document.getElementById("musicToggleBtn");
+  if (label) label.innerText = isMusicMuted ? "🔇" : "♪";
+  if (btn) {
+    btn.classList.toggle("is-off", isMusicMuted);
+    btn.title = isMusicMuted ? "Music off" : "Music on";
+    btn.setAttribute("aria-label", isMusicMuted ? "Turn music on" : "Turn music off");
+  }
+}
+
+function toggleMusic() {
+  unlockAudio();
+  isMusicMuted = !isMusicMuted;
+  bgmMutedByMaster = false; // direct control resets the master link
+  try {
+    window.localStorage.setItem(MUSIC_STORAGE_KEY, String(isMusicMuted));
+    window.localStorage.setItem(BGM_BY_MASTER_KEY, "false");
+  } catch {}
+  updateMusicButton();
+  updateBgmPlayback();
 }
 
 function unlockAudio() {
@@ -129,7 +161,32 @@ function toggleMute() {
   isMuted = !isMuted;
   saveMutePreference();
   updateMuteButton();
-  updateBgmPlayback();
+
+  let bgmChanged = false;
+  if (isMuted) {
+    // Turning Sound OFF: also mute BGM if it's currently playing.
+    if (!isMusicMuted) {
+      isMusicMuted = true;
+      bgmMutedByMaster = true;
+      bgmChanged = true;
+    }
+  } else {
+    // Turning Sound ON: restore BGM only if WE were the one that muted it.
+    if (isMusicMuted && bgmMutedByMaster) {
+      isMusicMuted = false;
+      bgmMutedByMaster = false;
+      bgmChanged = true;
+    }
+  }
+
+  if (bgmChanged) {
+    try {
+      window.localStorage.setItem(MUSIC_STORAGE_KEY, String(isMusicMuted));
+      window.localStorage.setItem(BGM_BY_MASTER_KEY, String(bgmMutedByMaster));
+    } catch {}
+    updateMusicButton();
+    updateBgmPlayback();
+  }
 }
 
 // Track active clones per sound so stopSound() can actually silence them.
@@ -259,6 +316,30 @@ function confirmBotDifficulty(difficulty) {
   try { localStorage.setItem(BOT_DIFFICULTY_KEY, difficulty); } catch {}
   closeBotDifficulty();
   startBotMatch(difficulty);
+}
+
+function leaveRoom() {
+  socket.emit("leaveRoom");
+}
+
+function requestRematch() {
+  const btn = document.getElementById("rematchBtn");
+  if (btn.disabled) return;
+  btn.disabled = true;
+  document.getElementById("rematchLabel").innerText = "Waiting...";
+  socket.emit("requestRematch");
+}
+
+function resetRematchButton() {
+  const btn = document.getElementById("rematchBtn");
+  if (!btn) return;
+  btn.disabled = false;
+  document.getElementById("rematchLabel").innerText = "Rematch";
+}
+
+function confirmLeaveRoom() {
+  if (currentRoom?.started && !confirm("Leave the current match? You won't be able to rejoin.")) return;
+  leaveRoom();
 }
 
 function startBotMatch(difficulty = "normal") {
@@ -802,6 +883,8 @@ function updateActiveTimerRing() {
 }
 
 function render(room) {
+  const prevTurnId = previousRoomSnapshot?.players?.[previousRoomSnapshot.turn]?.id;
+  const curTurnId  = room.players?.[room.turn]?.id;
   currentRoom = room;
   roomLabel.innerText = `Room ${room.roomCode}`;
   startTurnTimer(room.turnEndsAt);
@@ -814,7 +897,25 @@ function render(room) {
   announceCardEffect(room);
   renderDeckDecision(room);
 
+  if (curTurnId === socket.id && curTurnId !== prevTurnId && room.started) {
+    showYourTurnBanner();
+  }
+
   previousRoomSnapshot = room;
+}
+
+function showYourTurnBanner() {
+  let el = document.getElementById("yourTurnBanner");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "yourTurnBanner";
+    el.className = "your-turn-banner";
+    el.innerHTML = `<span class="ytb-bolt">⚡</span><span>Your Turn!</span>`;
+    document.body.appendChild(el);
+  }
+  el.classList.remove("show");
+  void el.offsetWidth;
+  el.classList.add("show");
 }
 
 function updateDirectionIndicator(room) {
@@ -1072,6 +1173,21 @@ socket.on("invalidMove", (message) => {
   pendingDrawSound = false;
 });
 
+socket.on("leftRoom", () => {
+  clearInterval(timerInterval);
+  stopSound("timerTick");
+  currentRoom = null;
+  roomCode = null;
+  myCards = [];
+  pendingCard = null;
+  pendingCardElement = null;
+  isPlayingCard = false;
+  colorPicker.style.display = "none";
+  deckDecisionModal.style.display = "none";
+  winnerModal.style.display = "none";
+  setScreen("menu");
+});
+
 socket.on("unoCalled", ({ playerName }) => {
   playSound("unoCall");
 
@@ -1085,6 +1201,14 @@ socket.on("roomError", (message) => {
   playSound("invalidMove");
 });
 
+socket.on("rematchUpdate", ({ votes, required }) => {
+  const label = document.getElementById("rematchLabel");
+  if (!label) return;
+  if (votes < required) {
+    label.innerText = `Waiting (${votes}/${required})`;
+  }
+});
+
 socket.on("gameOver", (winnerName) => {
   clearInterval(timerInterval);
   stopSound("timerTick");
@@ -1094,7 +1218,126 @@ socket.on("gameOver", (winnerName) => {
   playSound("win");
   winnerNameElement.innerText = winnerName;
   winnerModal.style.display = "flex";
+  resetRematchButton();
+  burstConfetti();
 });
+
+/* ----------------------- Emoji reactions ----------------------- */
+function toggleReactionPopover(event) {
+  if (event) event.stopPropagation();
+  const pop = document.getElementById("reactionPopover");
+  const fab = document.getElementById("emojiFab");
+  if (!pop) return;
+
+  if (pop.hidden && fab) {
+    const rect = fab.getBoundingClientRect();
+    pop.style.position = "fixed";
+    // Open upward, right-aligned with the FAB.
+    pop.style.bottom = `${window.innerHeight - rect.top + 8}px`;
+    pop.style.right = `${Math.max(8, window.innerWidth - rect.right)}px`;
+    pop.style.top = "auto";
+    pop.style.left = "auto";
+  }
+
+  pop.hidden = !pop.hidden;
+}
+
+function sendReaction(emoji) {
+  socket.emit("sendReaction", emoji);
+  document.getElementById("reactionPopover").hidden = true;
+  // Show locally too for instant feedback
+  spawnReactionAt(emoji, getOwnAnchor());
+}
+
+function getOwnAnchor() {
+  // Anchor below the hand for own reactions; near the player avatar for others.
+  return { x: window.innerWidth / 2, y: window.innerHeight - 180 };
+}
+
+function getPlayerAnchor(playerId) {
+  const el = document.querySelector(`.player[data-player-id="${playerId}"]`);
+  if (!el) return getOwnAnchor();
+  const rect = el.getBoundingClientRect();
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+}
+
+function spawnReactionAt(emoji, anchor) {
+  // Floating emoji
+  const el = document.createElement("div");
+  el.className = "reaction-float";
+  el.textContent = emoji;
+  const drift = (Math.random() * 80) - 40;
+  const tilt  = (Math.random() * 30) - 15;
+  el.style.left = `${anchor.x}px`;
+  el.style.top = `${anchor.y}px`;
+  el.style.setProperty("--rx", `${drift}px`);
+  el.style.setProperty("--rot", `${tilt}deg`);
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2200);
+
+  // Burst ring
+  const ring = document.createElement("div");
+  ring.className = "reaction-ring";
+  ring.style.left = `${anchor.x}px`;
+  ring.style.top = `${anchor.y}px`;
+  document.body.appendChild(ring);
+  setTimeout(() => ring.remove(), 700);
+
+  // Mini sparkles
+  for (let i = 0; i < 4; i += 1) {
+    const dot = document.createElement("div");
+    dot.className = "reaction-spark";
+    dot.textContent = emoji;
+    const angle = (Math.PI * 2 * i) / 4 + Math.random() * 0.6;
+    const dist = 40 + Math.random() * 24;
+    dot.style.left = `${anchor.x}px`;
+    dot.style.top = `${anchor.y}px`;
+    dot.style.setProperty("--dx", `${Math.cos(angle) * dist}px`);
+    dot.style.setProperty("--dy", `${Math.sin(angle) * dist}px`);
+    document.body.appendChild(dot);
+    setTimeout(() => dot.remove(), 900);
+  }
+}
+
+document.addEventListener("click", (e) => {
+  const pop = document.getElementById("reactionPopover");
+  const fab = document.getElementById("emojiFab");
+  if (!pop || pop.hidden) return;
+  if (pop.contains(e.target) || (fab && fab.contains(e.target))) return;
+  pop.hidden = true;
+});
+
+socket.on("reaction", ({ playerId, emoji }) => {
+  if (playerId === socket.id) return; // already shown locally
+  spawnReactionAt(emoji, getPlayerAnchor(playerId));
+});
+
+function burstConfetti() {
+  const host = document.createElement("div");
+  host.className = "confetti-burst";
+  document.body.appendChild(host);
+
+  const colors = ["#e53935", "#fbc02d", "#43a047", "#1e88e5", "#ffe680", "#ff7043", "#ab47bc"];
+  const count = 80;
+  for (let i = 0; i < count; i += 1) {
+    const piece = document.createElement("span");
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 200 + Math.random() * 320;
+    const dx = Math.cos(angle) * dist;
+    const dy = Math.sin(angle) * dist - 80; // bias upward
+    const rot = Math.random() * 720 - 360;
+    const dur = 1200 + Math.random() * 900;
+    piece.style.cssText =
+      `background:${color};` +
+      `--dx:${dx}px;--dy:${dy}px;--rot:${rot}deg;` +
+      `animation-duration:${dur}ms;` +
+      `animation-delay:${Math.random() * 120}ms;`;
+    host.appendChild(piece);
+  }
+
+  setTimeout(() => host.remove(), 2400);
+}
 
 ["click", "touchstart", "keydown"].forEach((eventName) => {
   window.addEventListener(eventName, unlockAudio, { once: true });
@@ -1106,6 +1349,7 @@ window.addEventListener("keydown", (e) => {
 
 loadMutePreference();
 updateMuteButton();
+updateMusicButton();
 
 /* ----------------------- How to Play tutorial ----------------------- */
 const TUTORIAL_KEY = "lcb-tutorial-seen-v1";
