@@ -63,7 +63,8 @@ const soundEffects = {
   timerTick: new Audio("/sounds/timer-tick.mp3"),
   win: new Audio("/sounds/win.mp3"),
   unoCall: new Audio("/sounds/uno-call.mp3"),
-  penalty: new Audio("/sounds/penalty.mp3")
+  penalty: new Audio("/sounds/penalty.mp3"),
+  power: new Audio("/sounds/power.mp3")
 };
 
 Object.values(soundEffects).forEach((audio) => {
@@ -741,6 +742,7 @@ function announceCardEffect(room) {
   const prevDiscardLen = previousRoomSnapshot?.discard?.length || 0;
   if (room.discard.length <= prevDiscardLen) return; // only on new plays
   if (!["reverse", "skip", "+2", "+4", "wild"].includes(top.value)) return;
+  playSound("power");
   showPowerCardEffect(top);
 }
 
