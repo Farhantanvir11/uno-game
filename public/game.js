@@ -82,12 +82,27 @@ function setScreen(screen) {
   document.body.dataset.screen = screen;
 }
 
+const bgm = new Audio("/sounds/bgm.mp3");
+bgm.loop = true;
+bgm.volume = 0.35;
+bgm.preload = "auto";
+
+function updateBgmPlayback() {
+  if (!audioUnlocked || isMuted) {
+    bgm.pause();
+    return;
+  }
+  if (bgm.paused) {
+    bgm.play().catch(() => {});
+  }
+}
+
 function unlockAudio() {
   if (audioUnlocked) {
     return;
   }
-
   audioUnlocked = true;
+  updateBgmPlayback();
 }
 
 function loadMutePreference() {
@@ -114,6 +129,7 @@ function toggleMute() {
   isMuted = !isMuted;
   saveMutePreference();
   updateMuteButton();
+  updateBgmPlayback();
 }
 
 // Track active clones per sound so stopSound() can actually silence them.
@@ -586,15 +602,33 @@ function animatePlayFlight(sourceEl, card, onComplete) {
   }, 460);
 }
 
+function isCardPlayable(card, top, stackCount) {
+  if (!top) return true;
+  if (stackCount > 0) {
+    if (top.value === "+4") return card.value === "+4";
+    if (top.value === "+2") return card.value === "+2" || card.value === "+4";
+  }
+  if (card.color === "black") return true;
+  return card.color === top.color || card.value === top.value;
+}
+
 function renderHand(room) {
   handElement.innerHTML = "";
   const isMyTurn = room.players[room.turn]?.id === socket.id && !room.awaitingDeckDecision;
+  const top = room.discard[room.discard.length - 1];
+  const playableCards = [];
 
-  myCards.forEach((card) => {
+  myCards.forEach((card, idx) => {
     const cardElement = document.createElement("button");
     cardElement.className = `card ${card.color}`;
     cardElement.innerHTML = buildCardInnerHTML(card);
     cardElement.disabled = !isMyTurn;
+
+    const playable = isMyTurn && isCardPlayable(card, top, room.stackCount);
+    if (playable) {
+      cardElement.classList.add("playable");
+      playableCards.push({ idx, el: cardElement });
+    }
 
     if (isMyTurn) {
       cardElement.addEventListener("click", () => playCard(card, cardElement));
@@ -607,6 +641,37 @@ function renderHand(room) {
 
   unoButton.style.display = myCards.length === 1 ? "inline-block" : "none";
   drawButton.disabled = !isMyTurn;
+
+  maybeShowFirstPlayHint(isMyTurn, playableCards);
+}
+
+/* ---- First-time turn hint ---- */
+const HINT_PLAY_KEY  = "lcb-hint-firstplay-v1";
+const HINT_DRAW_KEY  = "lcb-hint-firstdraw-v1";
+
+function maybeShowFirstPlayHint(isMyTurn, playableCards) {
+  if (!isMyTurn) return;
+  let seenPlay = false, seenDraw = false;
+  try {
+    seenPlay = localStorage.getItem(HINT_PLAY_KEY) === "1";
+    seenDraw = localStorage.getItem(HINT_DRAW_KEY) === "1";
+  } catch {}
+
+  if (playableCards.length > 0 && !seenPlay) {
+    playableCards[0].el.classList.add("hint-pulse");
+    const dismiss = () => {
+      try { localStorage.setItem(HINT_PLAY_KEY, "1"); } catch {}
+      playableCards[0].el.classList.remove("hint-pulse");
+    };
+    playableCards[0].el.addEventListener("click", dismiss, { once: true });
+  } else if (playableCards.length === 0 && !seenDraw) {
+    deckElement.classList.add("hint-pulse");
+    const dismiss = () => {
+      try { localStorage.setItem(HINT_DRAW_KEY, "1"); } catch {}
+      deckElement.classList.remove("hint-pulse");
+    };
+    deckElement.addEventListener("click", dismiss, { once: true });
+  }
 }
 
 function renderTopCard(room) {
@@ -1135,7 +1200,7 @@ function renderTutorialStep() {
     .map((_, i) => `<span class="tut-dot${i === tutorialStep ? " active" : ""}"></span>`)
     .join("");
 
-  tutorialBackBtn.style.visibility = tutorialStep === 0 ? "hidden" : "visible";
+  tutorialBackBtn.style.display = tutorialStep === 0 ? "none" : "";
   tutorialNextBtn.innerText = tutorialStep === tutorialSteps.length - 1 ? "Got it" : "Next";
 }
 
