@@ -52,6 +52,10 @@
     </div>
 
     <p class="credit">Designed &amp; developed by <span>Farhan Tanvir</span></p>
+
+    <button id="musicToggleBtn" class="music-toggle" type="button" onclick="toggleMusic()" aria-label="Toggle background music" title="Toggle music">
+      <span id="musicToggleLabel" class="music-icon" aria-hidden="true">♪</span>
+    </button>
   </div>
 
   <!-- Bot difficulty picker -->
@@ -147,6 +151,15 @@
           <polyline points="9 6 15 12 9 18"/>
         </svg>
       </button>
+
+      <button class="link-btn lobby-leave" onclick="leaveRoom()" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+        Leave Room
+      </button>
     </div>
   </div>
 
@@ -160,6 +173,14 @@
       <div id="roomLabel"></div>
       <div class="hud-meta">
         <button id="muteBtn" class="hud-btn" onclick="toggleMute()">Sound: On</button>
+        <button id="leaveBtn" class="hud-btn hud-leave" onclick="confirmLeaveRoom()" title="Leave game">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Leave
+        </button>
         <div id="timer">Time: -</div>
       </div>
     </div>
@@ -184,6 +205,7 @@
     </div>
     <div id="players"></div>
     <div id="powerEffect" class="power-effect" aria-hidden="true"></div>
+
 
     <div id="colorPicker" style="display:none;" onclick="if(event.target===this) cancelColorPicker()">
       <div class="color-picker-card">
@@ -214,12 +236,24 @@
   <div id="hand"></div>
   <div id="toast" class="toast" aria-live="polite"></div>
 
+  <!-- Emoji reactions: thumb-zone FAB + upward popover -->
+  <button id="emojiFab" class="emoji-fab" type="button" onclick="toggleReactionPopover(event)" aria-label="Send reaction">
+    <span aria-hidden="true">😀</span>
+  </button>
+  <div id="reactionPopover" class="reaction-popover" hidden>
+    <button type="button" onclick="sendReaction('❤️')">❤️</button>
+    <button type="button" onclick="sendReaction('🔥')">🔥</button>
+    <button type="button" onclick="sendReaction('😂')">😂</button>
+    <button type="button" onclick="sendReaction('👍')">👍</button>
+    <button type="button" onclick="sendReaction('😱')">😱</button>
+    <button type="button" onclick="sendReaction('🤡')">🤡</button>
+  </div>
+
   <div id="winnerModal" class="overlay winner-overlay" style="display:none;">
     <div class="overlay-card winner-card">
       <div class="winner-confetti" aria-hidden="true">
-        <span></span><span></span><span></span><span></span><span></span>
-        <span></span><span></span><span></span><span></span><span></span>
-        <span></span><span></span>
+        <span></span><span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span><span></span><span></span>
       </div>
       <div class="winner-trophy" aria-hidden="true">
         <svg viewBox="0 0 120 120">
@@ -242,7 +276,16 @@
       <p class="winner-tag">Champion Crowned</p>
       <h2 id="winnerName"></h2>
       <p class="winner-subtitle">The table is clear. A new battle can begin whenever your squad is ready.</p>
-      <button id="winnerCloseBtn" onclick="closeWinnerModal()">Back To Lobby</button>
+      <div class="winner-actions">
+        <button id="rematchBtn" class="winner-rematch" onclick="requestRematch()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="23 4 23 10 17 10"/>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+          </svg>
+          <span id="rematchLabel">Rematch</span>
+        </button>
+        <button id="winnerCloseBtn" class="winner-close" onclick="closeWinnerModal()">Back To Lobby</button>
+      </div>
     </div>
   </div>
 

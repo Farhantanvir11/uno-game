@@ -291,6 +291,7 @@ function finishGame(roomCode, winnerName) {
   }
 
   room.started = false;
+  room.rematchVotes = new Set();
   stopBotTurn(room);
   stopTurnTimer(room);
   io.to(roomCode).emit("gameOver", winnerName);
@@ -950,6 +951,53 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     removePlayerFromRoom(socket.id);
+  });
+
+  socket.on("sendReaction", (emoji) => {
+    const allowed = ["❤️", "🔥", "😂", "👍", "😱", "🤡"];
+    if (!allowed.includes(emoji)) return;
+    const roomCode = Object.keys(rooms).find((code) =>
+      rooms[code].players.some((p) => p.id === socket.id)
+    );
+    if (!roomCode) return;
+    const now = Date.now();
+    if (!socket._lastReactionAt) socket._lastReactionAt = 0;
+    if (now - socket._lastReactionAt < 700) return;
+    socket._lastReactionAt = now;
+
+    io.to(roomCode).emit("reaction", { playerId: socket.id, emoji });
+  });
+
+  socket.on("requestRematch", () => {
+    const roomCode = Object.keys(rooms).find((code) =>
+      rooms[code].players.some((p) => p.id === socket.id)
+    );
+    if (!roomCode) return;
+    const room = rooms[roomCode];
+    if (room.started) return;
+
+    if (!room.rematchVotes) room.rematchVotes = new Set();
+    room.rematchVotes.add(socket.id);
+
+    const humanPlayers = room.players.filter((p) => !p.isBot);
+    const required = humanPlayers.length;
+    const votes = humanPlayers.filter((p) => room.rematchVotes.has(p.id)).length;
+
+    io.to(roomCode).emit("rematchUpdate", { votes, required });
+
+    if (votes >= required) {
+      room.rematchVotes = new Set();
+      startRoomGame(roomCode, room.handSize);
+    }
+  });
+
+  socket.on("leaveRoom", () => {
+    const roomCode = Object.keys(rooms).find((code) =>
+      rooms[code].players.some((p) => p.id === socket.id)
+    );
+    if (roomCode) socket.leave(roomCode);
+    removePlayerFromRoom(socket.id);
+    socket.emit("leftRoom");
   });
 
   socket.on("resolveDeckDecision", ({ roomCode, action }) => {
