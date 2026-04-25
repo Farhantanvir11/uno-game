@@ -111,6 +111,7 @@ function getSafeRoom(roomCode) {
     stackCount: room.stackCount,
     handSize: room.handSize,
     rules: room.rules || null,
+    soloMode: !!room.soloMode,
     canChallenge: Boolean(
       room.rules &&
       room.rules.challengePlusFour &&
@@ -799,7 +800,7 @@ io.on("connection", (socket) => {
       started: false,
       handSize: DEFAULT_HAND_SIZE,
       soloMode: true,
-      // Bot matches always run on normal UNO rules — no house rules.
+      // Defaults match multiplayer; the host can toggle them in the lobby before starting.
       rules: {
         stacking:          true,
         drawUntilPlayable: false,
@@ -818,7 +819,7 @@ io.on("connection", (socket) => {
 
     socket.join(roomCode);
     socket.emit("roomCreated", roomCode);
-    startRoomGame(roomCode, DEFAULT_HAND_SIZE);
+    emitLobby(roomCode);
   });
 
   socket.on("updateLobbyRules", ({ roomCode, rules, handSize }) => {
