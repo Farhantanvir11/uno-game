@@ -291,6 +291,29 @@ function joinRoom() {
   socket.emit("joinRoom", { roomCode: code, playerName: name });
 }
 
+let isSpectator = false;
+
+socket.on("spectateOffered", ({ roomCode: code, reason }) => {
+  const reasonText = reason === "started"
+    ? "That match is already in progress."
+    : "That room is already full.";
+  if (!confirm(`${reasonText}\n\nJoin as spectator?`)) return;
+  socket.emit("joinAsSpectator", { roomCode: code });
+});
+
+socket.on("spectatorJoined", (code) => {
+  isSpectator = true;
+  roomCode = code;
+  myCards = [];
+  document.body.classList.add("is-spectator");
+  setScreen("lobby");
+});
+
+socket.on("leftRoom", () => {
+  isSpectator = false;
+  document.body.classList.remove("is-spectator");
+});
+
 const BOT_DIFFICULTY_KEY = "lcb-bot-difficulty";
 
 function openBotDifficulty() {
@@ -363,7 +386,12 @@ function startGame() {
   playSound("buttonPress");
   socket.emit("startGame", {
     roomCode,
-    cards: cardCountSelect.value
+    cards: cardCountSelect.value,
+    rules: {
+      stacking:          document.getElementById("ruleStacking")?.checked  ?? true,
+      drawUntilPlayable: document.getElementById("ruleDrawUntil")?.checked ?? false,
+      challengePlusFour: document.getElementById("ruleChallenge")?.checked ?? false
+    }
   });
 }
 
@@ -423,9 +451,38 @@ function updateLobby(room) {
   currentRoom = room;
   roomCode = room.roomCode;
   roomTitle.innerText = room.roomCode;
-  roomStatus.innerText = `${room.players.length}/5 Players`;
+  const specs = room.spectatorCount || 0;
+  roomStatus.innerText = `${room.players.length}/5 Players` + (specs > 0 ? ` · ${specs} 👀` : "");
   roomLabel.innerText = `Room ${room.roomCode}`;
   startButton.disabled = socket.id !== room.hostId || room.players.length < 2;
+
+  // Only the host can change house rules / starting cards.
+  const isHost = socket.id === room.hostId;
+  ["ruleStacking", "ruleDrawUntil", "ruleChallenge"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !isHost;
+  });
+  document.getElementById("cardCountPills")?.classList.toggle("is-locked", !isHost);
+
+  // Live-sync settings from the host so every member sees the same rules.
+  if (!isHost) {
+    if (room.rules) {
+      const sync = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.checked = !!value;
+      };
+      sync("ruleStacking",  room.rules.stacking !== false);
+      sync("ruleDrawUntil", room.rules.drawUntilPlayable === true);
+      sync("ruleChallenge", room.rules.challengePlusFour === true);
+    }
+    if (room.handSize) {
+      if (cardCountSelect) cardCountSelect.value = String(room.handSize);
+      const pills = document.querySelectorAll("#cardCountPills .lobby-pill");
+      pills.forEach((p) => {
+        p.classList.toggle("is-active", String(p.dataset.value) === String(room.handSize));
+      });
+    }
+  }
 
   lobbyPlayers.innerHTML = "";
 
@@ -485,6 +542,27 @@ document.addEventListener("click", (e) => {
   pill.classList.add("is-active");
   const select = document.getElementById("cardCount");
   if (select) select.value = pill.dataset.value;
+  broadcastLobbySettings();
+});
+
+function broadcastLobbySettings() {
+  if (!roomCode) return;
+  if (!currentRoom || currentRoom.hostId !== socket.id) return;
+  socket.emit("updateLobbyRules", {
+    roomCode,
+    handSize: cardCountSelect?.value,
+    rules: {
+      stacking:          document.getElementById("ruleStacking")?.checked  ?? true,
+      drawUntilPlayable: document.getElementById("ruleDrawUntil")?.checked ?? false,
+      challengePlusFour: document.getElementById("ruleChallenge")?.checked ?? false
+    }
+  });
+}
+
+["ruleStacking", "ruleDrawUntil", "ruleChallenge"].forEach((id) => {
+  document.addEventListener("change", (e) => {
+    if (e.target && e.target.id === id) broadcastLobbySettings();
+  });
 });
 
 function startTurnTimer(turnEndsAt) {
@@ -525,6 +603,10 @@ function playCard(card, sourceEl) {
   if (card.value === "wild" || card.value === "+4") {
     pendingCard = card;
     pendingCardElement = sourceEl || null;
+    // Player chose to stack — close any open challenge prompt so the two modals never overlap.
+    dismissChallengeModal();
+    const reopen = document.getElementById("challengeReopen");
+    if (reopen) reopen.style.display = "none";
     colorPicker.style.display = "flex";
     return;
   }
@@ -723,8 +805,110 @@ function renderHand(room) {
   unoButton.style.display = myCards.length === 1 ? "inline-block" : "none";
   drawButton.disabled = !isMyTurn;
 
+  // Challenge +4: drive modal + reopen pill from server's canChallenge flag.
+  syncChallengeUi(room, isMyTurn);
+
   maybeShowFirstPlayHint(isMyTurn, playableCards);
 }
+
+/* ---- Challenge +4 modal ---- */
+let _challengeWasAvailable = false;
+let _challengeDismissed   = false;
+
+function syncChallengeUi(room, isMyTurn) {
+  const modal  = document.getElementById("challengeModal");
+  const reopen = document.getElementById("challengeReopen");
+  const available = !!(isMyTurn && room && room.canChallenge);
+
+  if (!available) {
+    if (modal)  modal.style.display = "none";
+    if (reopen) reopen.style.display = "none";
+    _challengeWasAvailable = false;
+    _challengeDismissed   = false;
+    return;
+  }
+
+  // Refresh dynamic content
+  const stack = room.stackCount || 4;
+  const offenderName = (() => {
+    const top = room.discard[room.discard.length - 1];
+    // The +4's color belongs to whoever played it; we don't track player names per card,
+    // so derive offender from the player NOT on turn whose last action made the stack.
+    // Simplest: show the player just before us in play direction.
+    const idx = room.turn;
+    const prev = (idx - room.direction + room.players.length) % room.players.length;
+    return room.players[prev]?.name || "Opponent";
+  })();
+  const offenderEl = document.getElementById("challengeOffender");
+  const penEl      = document.getElementById("challengePenalty");
+  const accCount   = document.getElementById("challengeAcceptCount");
+  if (offenderEl) offenderEl.textContent = offenderName;
+  if (penEl)      penEl.textContent      = stack;
+  if (accCount)   accCount.textContent   = stack;
+
+  // Auto-open the first time it becomes available, unless user dismissed.
+  if (!_challengeWasAvailable && !_challengeDismissed && modal) {
+    modal.style.display = "flex";
+    playSound("invalidMove"); // alert ping; reuse existing sound
+  }
+  _challengeWasAvailable = true;
+
+  // Reopen pill visible only when modal is closed
+  if (reopen) {
+    const modalOpen = modal && modal.style.display !== "none";
+    reopen.style.display = modalOpen ? "none" : "inline-flex";
+  }
+}
+
+function openChallengeModal() {
+  const modal  = document.getElementById("challengeModal");
+  const reopen = document.getElementById("challengeReopen");
+  if (modal)  modal.style.display = "flex";
+  if (reopen) reopen.style.display = "none";
+  _challengeDismissed = false;
+}
+
+function dismissChallengeModal() {
+  const modal  = document.getElementById("challengeModal");
+  const reopen = document.getElementById("challengeReopen");
+  if (modal)  modal.style.display = "none";
+  if (reopen && currentRoom?.canChallenge) reopen.style.display = "inline-flex";
+  _challengeDismissed = true;
+}
+
+function challengePlusFour() {
+  if (!currentRoom || !currentRoom.canChallenge) return;
+  if (currentRoom.players[currentRoom.turn]?.id !== socket.id) return;
+  unlockAudio();
+  playSound("buttonPress");
+  socket.emit("challengePlusFour", roomCode);
+  dismissChallengeModal();
+}
+
+function acceptChallenge() {
+  // Accept = same as pressing Draw under penalty: server draws the full stack.
+  dismissChallengeModal();
+  drawCard();
+}
+
+socket.on("challengeResolved", ({ challengerId, offenderId, success, drawn }) => {
+  const me = socket.id;
+  let msg;
+  if (success) {
+    msg = challengerId === me
+      ? `Challenge won — opponent drew ${drawn}`
+      : (offenderId === me
+          ? `You were challenged — drew ${drawn}`
+          : `Challenge succeeded — ${drawn} cards`);
+  } else {
+    msg = challengerId === me
+      ? `Challenge failed — you drew ${drawn}`
+      : (offenderId === me
+          ? `Challenge dismissed`
+          : `Challenge failed — ${drawn} cards`);
+  }
+  showToast(msg, 1800);
+});
 
 /* ---- First-time turn hint ---- */
 const HINT_PLAY_KEY  = "lcb-hint-firstplay-v1";

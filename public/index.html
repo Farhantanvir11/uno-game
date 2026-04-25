@@ -145,6 +145,27 @@
         </select>
       </div>
 
+      <div class="lobby-section lobby-rules">
+        <label class="lobby-section-title">House rules</label>
+        <div class="rules-toggles">
+          <label class="rule-toggle">
+            <input type="checkbox" id="ruleStacking" checked>
+            <span class="rule-name">Stack +2 / +4</span>
+            <span class="rule-hint">Pass damage on with another draw card.</span>
+          </label>
+          <label class="rule-toggle">
+            <input type="checkbox" id="ruleDrawUntil">
+            <span class="rule-name">Draw until playable</span>
+            <span class="rule-hint">Draw up to 3 cards on your turn (one per tap); play whenever you're ready.</span>
+          </label>
+          <label class="rule-toggle">
+            <input type="checkbox" id="ruleChallenge">
+            <span class="rule-name">Challenge +4</span>
+            <span class="rule-hint">When hit by a +4, challenge it. If they had a matching color, they draw 4. Wrong guess: you draw 6.</span>
+          </label>
+        </div>
+      </div>
+
       <button id="startBtn" class="lobby-start-btn" onclick="startGame()">
         <span>Start Game</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
@@ -190,6 +211,11 @@
       <button id="unoBtn" onclick="callUNO()" style="display:none;">Last Card!</button>
     </div>
 
+    <!-- Re-open pill: small floating chip if user dismissed the modal -->
+    <button id="challengeReopen" class="challenge-reopen" onclick="openChallengeModal()" style="display:none;" aria-label="Reopen challenge prompt">
+      ⚖️ <span>Challenge</span>
+    </button>
+
     <div id="stackInfo"></div>
     <div id="playArea">
       <div id="deck" class="deck-pile" onclick="drawCard()" title="Draw a card">
@@ -206,6 +232,34 @@
     <div id="players"></div>
     <div id="powerEffect" class="power-effect" aria-hidden="true"></div>
 
+
+    <div id="challengeModal" class="overlay challenge-overlay" style="display:none;" onclick="if(event.target===this) dismissChallengeModal()">
+      <div class="color-picker-card challenge-card">
+        <p class="color-picker-kicker challenge-kicker">+4 PENALTY</p>
+        <h3 class="color-picker-title challenge-title">Defend yourself</h3>
+        <p class="challenge-desc">
+          <strong id="challengeOffender">Opponent</strong> hit you with <strong>+4</strong>.
+          <br>Accept and draw <strong id="challengePenalty">4</strong>, or call them out.
+        </p>
+        <div class="challenge-actions">
+          <button class="challenge-action challenge-fight" onclick="challengePlusFour()">
+            <span class="ca-emoji">⚖️</span>
+            <span class="ca-text">
+              <span class="ca-title">Challenge</span>
+              <span class="ca-sub">If they had a matching color, <em>they</em> draw it all</span>
+            </span>
+          </button>
+          <button class="challenge-action challenge-accept" onclick="acceptChallenge()">
+            <span class="ca-emoji">💳</span>
+            <span class="ca-text">
+              <span class="ca-title">Accept · Draw <span id="challengeAcceptCount">4</span></span>
+              <span class="ca-sub">Take the penalty, end your turn</span>
+            </span>
+          </button>
+        </div>
+        <button class="color-picker-cancel" onclick="dismissChallengeModal()">Decide later</button>
+      </div>
+    </div>
 
     <div id="colorPicker" style="display:none;" onclick="if(event.target===this) cancelColorPicker()">
       <div class="color-picker-card">
