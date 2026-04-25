@@ -5,7 +5,10 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --check server.js && node --check public/game.js"
+    "test": "node --check server.js && node --check public/game.js",
+    "cap:sync": "cap sync android",
+    "cap:open": "cap open android",
+    "android:dev": "cap sync android && cap open android"
   },
   "keywords": [],
   "author": "",
@@ -16,6 +19,12 @@
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/app": "^6.0.1",
+    "@capacitor/cli": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/splash-screen": "^6.0.2",
+    "@capacitor/status-bar": "^6.0.1",
     "socket.io-client": "^4.8.3"
   }
 }

@@ -1,0 +1,30 @@
+# fly.toml app configuration file generated for last-card-battle on 2026-04-25T23:19:14+06:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'last-card-battle'
+primary_region = 'sin'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  DATA_DIR = '/var/data'
+  NODE_ENV = 'production'
+
+[[mounts]]
+  source = 'lcb_data'
+  destination = '/var/data'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'off'
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  memory = '512mb'
+  cpus = 1
+  memory_mb = 512
