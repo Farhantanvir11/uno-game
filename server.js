@@ -25,13 +25,18 @@ function createPlayer(socket, name) {
   };
 }
 
-function createBotPlayer(roomCode) {
+const BOT_DIFFICULTIES = new Set(["easy", "normal", "hard"]);
+const BOT_NAMES = { easy: "Rookie Bot", normal: "Robot", hard: "Master Bot" };
+
+function createBotPlayer(roomCode, difficulty = "normal") {
+  const level = BOT_DIFFICULTIES.has(difficulty) ? difficulty : "normal";
   return {
     id: `bot:${roomCode}`,
-    name: "Robot",
+    name: BOT_NAMES[level] || "Robot",
     cards: [],
     calledUNO: false,
-    isBot: true
+    isBot: true,
+    difficulty: level
   };
 }
 
@@ -319,7 +324,7 @@ function chooseBotColor(cards) {
   return Object.entries(colorCounts).sort((a, b) => b[1] - a[1])[0][0];
 }
 
-function pickBotCard(player, topCard, stackCount) {
+function pickBotCard(player, topCard, stackCount, room) {
   const playableCards = player.cards.filter((card) =>
     isPlayableCard(card, topCard, stackCount) &&
     !(player.cards.length === 1 && isPowerCard(card))
@@ -329,41 +334,67 @@ function pickBotCard(player, topCard, stackCount) {
     return null;
   }
 
+  const difficulty = player.difficulty || "normal";
+
+  // EASY: pick a random playable card; mistakes occasionally by skipping power plays.
+  if (difficulty === "easy") {
+    // 30% chance to prefer a non-power card to feel less aggressive
+    const nonPower = playableCards.filter((c) => !isPowerCard(c));
+    const pool = (nonPower.length > 0 && Math.random() < 0.5) ? nonPower : playableCards;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  // For HARD, find the human opponent with fewest cards (threat detection).
+  let opponentLowCount = Infinity;
+  if (difficulty === "hard" && room) {
+    room.players.forEach((p) => {
+      if (p.id !== player.id && p.cards.length < opponentLowCount) {
+        opponentLowCount = p.cards.length;
+      }
+    });
+  }
+  const opponentInDanger = difficulty === "hard" && opponentLowCount <= 2;
+
+  // Count colors in own hand (used by hard to dump dominant color).
+  const colorCounts = { red: 0, green: 0, blue: 0, yellow: 0 };
+  player.cards.forEach((c) => {
+    if (colorCounts[c.color] !== undefined) colorCounts[c.color] += 1;
+  });
+
   const rankedCards = playableCards.sort((left, right) => {
     const score = (card) => {
+      // Stack response: must throw a +2/+4 to pass it on, else 0 (will draw).
       if (stackCount > 0) {
-        if (topCard.value === "+4") {
-          return card.value === "+4" ? 4 : 0;
-        }
-
-        if (card.value === "+4") {
-          return 4;
-        }
-
-        if (card.value === "+2") {
-          return 3;
-        }
-
+        if (topCard.value === "+4") return card.value === "+4" ? 4 : 0;
+        if (card.value === "+4") return 4;
+        if (card.value === "+2") return 3;
         return 0;
       }
 
-      if (card.color !== "black" && card.color === topCard.color) {
-        return 4;
+      // HARD: when opponent is about to win, prioritize attack cards.
+      if (opponentInDanger) {
+        if (card.value === "+4")     return 100;
+        if (card.value === "+2")     return 90;
+        if (card.value === "skip")   return 80;
+        if (card.value === "reverse" && room && room.players.length === 2) return 78;
       }
 
-      if (card.color !== "black" && card.value === topCard.value) {
-        return 3;
+      // Match by color (preferred) or value.
+      let s = 0;
+      if (card.color !== "black" && card.color === topCard.color) s = 4;
+      else if (card.color !== "black" && card.value === topCard.value) s = 3;
+      else if (card.value === "wild") s = 1;
+      else if (card.value === "+4") s = 0;
+      else s = 2;
+
+      if (difficulty === "hard") {
+        // Prefer dumping cards from the most-held color so we can play them off later.
+        if (card.color !== "black") s += colorCounts[card.color] * 0.1;
+        // Save wilds/+4 for emergencies — penalize when opponent isn't close.
+        if (card.value === "wild" || card.value === "+4") s -= 1.5;
       }
 
-      if (card.value === "wild") {
-        return 1;
-      }
-
-      if (card.value === "+4") {
-        return 0;
-      }
-
-      return 2;
+      return s;
     };
 
     return score(right) - score(left);
@@ -420,7 +451,7 @@ function runBotTurn(roomCode) {
   }
 
     const topCard = getTopCard(room);
-    const selectedCard = pickBotCard(bot, topCard, room.stackCount);
+    const selectedCard = pickBotCard(bot, topCard, room.stackCount, room);
 
   if (!selectedCard) {
     const drawCount = room.stackCount > 0 ? room.stackCount : 1;
@@ -687,13 +718,15 @@ io.on("connection", (socket) => {
     emitLobby(normalizedCode);
   });
 
-  socket.on("startBotMatch", (playerName) => {
+  socket.on("startBotMatch", (payload) => {
+    const playerName = typeof payload === "string" ? payload : payload?.name;
+    const difficulty = (typeof payload === "object" && payload?.difficulty) || "normal";
     const roomCode = generateRoomCode();
     const humanPlayer = createPlayer(socket, playerName);
 
     rooms[roomCode] = {
       hostId: socket.id,
-      players: [humanPlayer, createBotPlayer(roomCode)],
+      players: [humanPlayer, createBotPlayer(roomCode, difficulty)],
       started: false,
       handSize: DEFAULT_HAND_SIZE,
       soloMode: true,

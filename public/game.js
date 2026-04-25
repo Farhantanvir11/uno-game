@@ -218,7 +218,34 @@ function joinRoom() {
   socket.emit("joinRoom", { roomCode: code, playerName: name });
 }
 
-function startBotMatch() {
+const BOT_DIFFICULTY_KEY = "lcb-bot-difficulty";
+
+function openBotDifficulty() {
+  unlockAudio();
+  const name = getNameValue();
+  if (!name) {
+    alert("Please enter your name to start a match.");
+    return;
+  }
+  const modal = document.getElementById("botDifficultyModal");
+  const saved = (() => { try { return localStorage.getItem(BOT_DIFFICULTY_KEY); } catch { return null; } })();
+  modal.querySelectorAll(".bot-diff-option").forEach((btn) => {
+    btn.classList.toggle("is-active", btn.dataset.difficulty === (saved || "normal"));
+  });
+  modal.style.display = "flex";
+}
+
+function closeBotDifficulty() {
+  document.getElementById("botDifficultyModal").style.display = "none";
+}
+
+function confirmBotDifficulty(difficulty) {
+  try { localStorage.setItem(BOT_DIFFICULTY_KEY, difficulty); } catch {}
+  closeBotDifficulty();
+  startBotMatch(difficulty);
+}
+
+function startBotMatch(difficulty = "normal") {
   unlockAudio();
   const name = getNameValue();
   if (!name) {
@@ -227,7 +254,7 @@ function startBotMatch() {
   }
 
   playSound("buttonPress");
-  socket.emit("startBotMatch", name);
+  socket.emit("startBotMatch", { name, difficulty });
 }
 
 function startGame() {
@@ -1014,6 +1041,136 @@ window.addEventListener("keydown", (e) => {
 
 loadMutePreference();
 updateMuteButton();
+
+/* ----------------------- How to Play tutorial ----------------------- */
+const TUTORIAL_KEY = "lcb-tutorial-seen-v1";
+const tutorialModal = document.getElementById("tutorialModal");
+const tutorialStage = document.getElementById("tutorialStage");
+const tutorialDots = document.getElementById("tutorialDots");
+const tutorialNextBtn = document.getElementById("tutorialNext");
+const tutorialBackBtn = document.getElementById("tutorialBack");
+let tutorialStep = 0;
+
+const tutorialSteps = [
+  {
+    title: "Welcome to Last Card Battle",
+    body: "A fast-paced card duel for 2–5 players. Be the first to empty your hand to win.",
+    art: `
+      <div class="tut-stack">
+        <div class="tut-card red">7</div>
+        <div class="tut-card yellow">4</div>
+        <div class="tut-card blue">2</div>
+      </div>`
+  },
+  {
+    title: "Match color or value",
+    body: "On your turn, play one card from your hand that matches the top card's <b>color</b> or <b>value</b>. If you can't, draw one.",
+    art: `
+      <div class="tut-row">
+        <div class="tut-card blue tut-top">5</div>
+        <div class="tut-arrow">→</div>
+        <div class="tut-card-group">
+          <div class="tut-card blue">8</div>
+          <div class="tut-card red">5</div>
+        </div>
+      </div>
+      <p class="tut-caption">Same color (blue) or same value (5) is playable.</p>`
+  },
+  {
+    title: "Power cards",
+    body: `
+      <ul class="tut-list">
+        <li><b>Skip</b> — next player loses their turn</li>
+        <li><b>Reverse</b> — flips turn direction</li>
+        <li><b>+2</b> — next player draws 2</li>
+        <li><b>Wild</b> — choose any color</li>
+        <li><b>+4</b> — choose color, next draws 4</li>
+      </ul>`,
+    art: `
+      <div class="tut-row">
+        <div class="tut-card red tut-power">⊘</div>
+        <div class="tut-card green tut-power">⟲</div>
+        <div class="tut-card yellow tut-power">+2</div>
+        <div class="tut-card black tut-power">+4</div>
+      </div>`
+  },
+  {
+    title: "Stacking +2 and +4",
+    body: "If a +2 or +4 lands on you, you can <b>stack another +2/+4</b> to pass the penalty along — otherwise you must draw the full stack.",
+    art: `
+      <div class="tut-row">
+        <div class="tut-card red">+2</div>
+        <div class="tut-arrow">+</div>
+        <div class="tut-card blue">+2</div>
+        <div class="tut-arrow">=</div>
+        <div class="tut-card-stack">+4 to next!</div>
+      </div>`
+  },
+  {
+    title: "Last Card!",
+    body: "When you have <b>one card left</b>, the game auto-calls Last Card. If you forget the call before someone else does, you draw 2 as penalty.",
+    art: `
+      <div class="tut-row tut-uno">
+        <div class="tut-card yellow">3</div>
+        <div class="tut-shout">LAST<br/>CARD!</div>
+      </div>`
+  },
+  {
+    title: "You're ready!",
+    body: "Create a room to invite friends, join with a code, or practice against the bot. Good luck out there.",
+    art: `
+      <div class="tut-trophy">🏆</div>`
+  }
+];
+
+function renderTutorialStep() {
+  const step = tutorialSteps[tutorialStep];
+  tutorialStage.innerHTML = `
+    <div class="tut-art">${step.art || ""}</div>
+    <h3 class="tut-title">${step.title}</h3>
+    <div class="tut-body">${step.body}</div>
+  `;
+
+  tutorialDots.innerHTML = tutorialSteps
+    .map((_, i) => `<span class="tut-dot${i === tutorialStep ? " active" : ""}"></span>`)
+    .join("");
+
+  tutorialBackBtn.style.visibility = tutorialStep === 0 ? "hidden" : "visible";
+  tutorialNextBtn.innerText = tutorialStep === tutorialSteps.length - 1 ? "Got it" : "Next";
+}
+
+function openTutorial() {
+  tutorialStep = 0;
+  tutorialModal.style.display = "flex";
+  renderTutorialStep();
+}
+
+function closeTutorial() {
+  tutorialModal.style.display = "none";
+  try { localStorage.setItem(TUTORIAL_KEY, "1"); } catch {}
+}
+
+function tutorialNext() {
+  if (tutorialStep >= tutorialSteps.length - 1) {
+    closeTutorial();
+    return;
+  }
+  tutorialStep += 1;
+  renderTutorialStep();
+}
+
+function tutorialPrev() {
+  if (tutorialStep === 0) return;
+  tutorialStep -= 1;
+  renderTutorialStep();
+}
+
+// Auto-show on first visit
+try {
+  if (!localStorage.getItem(TUTORIAL_KEY)) {
+    openTutorial();
+  }
+} catch {}
 
 window.addEventListener("resize", () => {
   if (currentRoom?.started) {
