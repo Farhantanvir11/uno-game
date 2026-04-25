@@ -110,6 +110,17 @@ function getSafeRoom(roomCode) {
     discard: room.discard,
     stackCount: room.stackCount,
     handSize: room.handSize,
+    rules: room.rules || null,
+    canChallenge: Boolean(
+      room.rules &&
+      room.rules.challengePlusFour &&
+      room.stackCount >= 4 &&
+      room.discard.length > 0 &&
+      room.discard[room.discard.length - 1].value === "+4" &&
+      room.challengeContext &&
+      room.challengeContext.playerId
+    ),
+    spectatorCount: room.spectators ? room.spectators.size : 0,
     turnEndsAt: room.turnEndsAt || null,
     awaitingDeckDecision: Boolean(room.deckDecision),
     canShuffleDeck: room.discard.length > 1
@@ -206,6 +217,7 @@ function advanceTurn(roomCode, extraSteps = 1) {
   room.turn =
     (room.turn + extraSteps * room.direction + room.players.length) %
     room.players.length;
+  room.drawsThisTurn = 0;
 }
 
 function scheduleTurn(roomCode) {
@@ -244,6 +256,7 @@ function scheduleTurn(roomCode) {
     }
 
     activeRoom.stackCount = 0;
+    activeRoom.challengeContext = null;
     advanceTurn(roomCode);
     scheduleTurn(roomCode);
     emitGameState(roomCode);
@@ -256,12 +269,17 @@ function advanceToNextTurn(roomCode, extraSteps = 1) {
   emitGameState(roomCode);
 }
 
-function isPlayableCard(card, topCard, stackCount) {
+function isPlayableCard(card, topCard, stackCount, rules) {
   if (!topCard) {
     return true;
   }
 
   if (stackCount > 0) {
+    // House rule: stacking disabled — next player can't pass damage on.
+    if (rules && rules.stacking === false) {
+      return false;
+    }
+
     if (topCard.value === "+4") {
       return card.value === "+4";
     }
@@ -327,7 +345,7 @@ function chooseBotColor(cards) {
 
 function pickBotCard(player, topCard, stackCount, room) {
   const playableCards = player.cards.filter((card) =>
-    isPlayableCard(card, topCard, stackCount) &&
+    isPlayableCard(card, topCard, stackCount, room && room.rules) &&
     !(player.cards.length === 1 && isPowerCard(card))
   );
 
@@ -440,6 +458,73 @@ function startRoomGame(roomCode, handSize = DEFAULT_HAND_SIZE) {
   return true;
 }
 
+// Build the legality snapshot used to resolve a Challenge against a +4.
+// Must be computed BEFORE the +4 is placed onto the discard so we capture
+// the color that was active in play and whether the player had a matching card.
+function buildPlusFourContext(player, topCard) {
+  const priorColor = topCard ? topCard.color : null;
+  const hadMatchingColor = !!(
+    priorColor &&
+    priorColor !== "black" &&
+    player.cards.some((c) => c.color === priorColor)
+  );
+  return { priorColor, hadMatchingColor };
+}
+
+// Plays `card` (a copy already removed from player's hand) on behalf of `player`.
+// Handles UNO call, wild color resolution, +2/+4 stacking, reverse, skip, win, and turn advancement.
+function applyCardPlay(roomCode, player, playedCard, priorContext) {
+  const room = rooms[roomCode];
+  if (!room) return;
+
+  if (player.cards.length === 1 && !player.calledUNO) {
+    player.calledUNO = true;
+    io.to(roomCode).emit("unoCalled", { playerName: player.name });
+  }
+
+  if (playedCard.color === "black") {
+    playedCard.color = chooseBotColor(player.cards);
+  }
+
+  room.discard.push(playedCard);
+
+  if (!player.isBot) {
+    io.to(player.id).emit("yourCards", player.cards);
+  }
+
+  if (player.cards.length === 0) {
+    finishGame(roomCode, player.name);
+    return;
+  }
+
+  if (playedCard.value === "+2") {
+    room.stackCount += 2;
+    // +2 cannot be challenged — clear any prior +4 challenge context.
+    room.challengeContext = null;
+  } else if (playedCard.value === "+4") {
+    room.stackCount += 4;
+    // Capture the legality info for a possible challenge against THIS +4.
+    // priorContext = { priorColor, hadMatchingColor } supplied by caller.
+    room.challengeContext = priorContext
+      ? {
+          playerId: player.id,
+          priorColor: priorContext.priorColor || null,
+          hadMatchingColor: Boolean(priorContext.hadMatchingColor)
+        }
+      : null;
+  } else {
+    room.stackCount = 0;
+    room.challengeContext = null;
+  }
+
+  if (playedCard.value === "reverse") {
+    room.direction *= -1;
+  }
+
+  const shouldSkip = playedCard.value === "skip";
+  advanceToNextTurn(roomCode, shouldSkip ? 2 : 1);
+}
+
 function runBotTurn(roomCode) {
   const room = rooms[roomCode];
   if (!room || !room.started || room.deckDecision) {
@@ -483,38 +568,11 @@ function runBotTurn(roomCode) {
   }
 
   const playedCard = { ...bot.cards[handIndex] };
+  const priorContext = playedCard.value === "+4"
+    ? buildPlusFourContext(bot, getTopCard(room))
+    : null;
   bot.cards.splice(handIndex, 1);
-
-  if (bot.cards.length === 1) {
-    bot.calledUNO = true;
-    io.to(roomCode).emit("unoCalled", { playerName: bot.name });
-  }
-
-  if (playedCard.color === "black") {
-    playedCard.color = chooseBotColor(bot.cards);
-  }
-
-  room.discard.push(playedCard);
-
-  if (bot.cards.length === 0) {
-    finishGame(roomCode, bot.name);
-    return;
-  }
-
-  if (playedCard.value === "+2") {
-    room.stackCount += 2;
-  } else if (playedCard.value === "+4") {
-    room.stackCount += 4;
-  } else {
-    room.stackCount = 0;
-  }
-
-  if (playedCard.value === "reverse") {
-    room.direction *= -1;
-  }
-
-  const shouldSkip = playedCard.value === "skip";
-  advanceToNextTurn(roomCode, shouldSkip ? 2 : 1);
+  applyCardPlay(roomCode, bot, playedCard, priorContext);
 }
 
 function queueBotTurnIfNeeded(roomCode) {
@@ -616,6 +674,16 @@ function resolveDeckDecision(roomCode, action) {
   emitGameState(roomCode);
 }
 
+function removeSpectator(socketId) {
+  Object.keys(rooms).forEach((code) => {
+    const room = rooms[code];
+    if (room.spectators && room.spectators.has(socketId)) {
+      room.spectators.delete(socketId);
+      emitLobby(code);
+    }
+  });
+}
+
 function removePlayerFromRoom(socketId) {
   const roomCode = Object.keys(rooms).find((code) =>
     rooms[code].players.some((player) => player.id === socketId)
@@ -704,12 +772,12 @@ io.on("connection", (socket) => {
     }
 
     if (room.started) {
-      sendError(socket, "That game has already started.");
+      socket.emit("spectateOffered", { roomCode: normalizedCode, reason: "started" });
       return;
     }
 
     if (room.players.length >= MAX_PLAYERS) {
-      sendError(socket, "That room is already full.");
+      socket.emit("spectateOffered", { roomCode: normalizedCode, reason: "full" });
       return;
     }
 
@@ -731,6 +799,12 @@ io.on("connection", (socket) => {
       started: false,
       handSize: DEFAULT_HAND_SIZE,
       soloMode: true,
+      // Bot matches always run on normal UNO rules — no house rules.
+      rules: {
+        stacking:          true,
+        drawUntilPlayable: false,
+        challengePlusFour: false
+      },
       turn: 0,
       direction: 1,
       stackCount: 0,
@@ -747,7 +821,26 @@ io.on("connection", (socket) => {
     startRoomGame(roomCode, DEFAULT_HAND_SIZE);
   });
 
-  socket.on("startGame", ({ roomCode, cards }) => {
+  socket.on("updateLobbyRules", ({ roomCode, rules, handSize }) => {
+    const room = rooms[roomCode];
+    if (!room || room.started) return;
+    if (room.hostId !== socket.id) return;
+
+    if (rules && typeof rules === "object") {
+      room.rules = {
+        stacking:          rules.stacking !== false,
+        drawUntilPlayable: rules.drawUntilPlayable === true,
+        challengePlusFour: rules.challengePlusFour === true
+      };
+    }
+    if (handSize !== undefined) {
+      const n = Number.parseInt(handSize, 10);
+      if ([5, 7, 10].includes(n)) room.handSize = n;
+    }
+    emitLobby(roomCode);
+  });
+
+  socket.on("startGame", ({ roomCode, cards, rules }) => {
     const room = rooms[roomCode];
     if (!room) {
       sendError(socket, "Room not found.");
@@ -763,6 +856,12 @@ io.on("connection", (socket) => {
       sendError(socket, "At least 2 players are required.");
       return;
     }
+
+    room.rules = {
+      stacking:           rules?.stacking !== false,           // default ON
+      drawUntilPlayable:  rules?.drawUntilPlayable === true,   // default OFF
+      challengePlusFour:  rules?.challengePlusFour === true    // default OFF
+    };
 
     const handSize = Number.parseInt(cards, 10);
     startRoomGame(roomCode, Number.isInteger(handSize) ? handSize : DEFAULT_HAND_SIZE);
@@ -780,7 +879,8 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const drawCount = room.stackCount > 0 ? room.stackCount : 1;
+    const isPenalty = room.stackCount > 0;
+    const drawCount = isPenalty ? room.stackCount : 1;
     const drawResult = drawCards(room, player, drawCount);
 
     if (drawResult.needsDeckDecision) {
@@ -795,6 +895,25 @@ io.on("connection", (socket) => {
     }
 
     room.stackCount = 0;
+
+    const rules = room.rules || {};
+    const DRAW_UNTIL_CAP = 3;
+
+    // House rule: drawUntilPlayable — player draws one card per click, max 3 per turn.
+    // The turn stays open between draws so they can choose to play or draw again.
+    // No auto-play; turn ends only when they play a card or hit the 3-draw cap.
+    if (!isPenalty && rules.drawUntilPlayable) {
+      room.drawsThisTurn = (room.drawsThisTurn || 0) + 1;
+      if (room.drawsThisTurn < DRAW_UNTIL_CAP) {
+        scheduleTurn(roomCode);
+        emitGameState(roomCode);
+        return;
+      }
+      // Reached cap: end the turn.
+      advanceToNextTurn(roomCode);
+      return;
+    }
+
     advanceToNextTurn(roomCode);
   });
 
@@ -833,7 +952,15 @@ io.on("connection", (socket) => {
     }
 
     const topCard = getTopCard(room);
-    if (!isPlayableCard(card, topCard, room.stackCount)) {
+    if (!isPlayableCard(card, topCard, room.stackCount, room.rules)) {
+      // Under PENALTY (+2/+4), a misplay should NOT add an extra punishment card —
+      // the player is already paying via the stack. Just reject and let them choose
+      // Accept, Stack, or Challenge.
+      if (room.stackCount > 0) {
+        emitInvalidMove(socket, "Stack a +2/+4 or accept the penalty.");
+        return;
+      }
+
       emitInvalidMove(socket, "That card cannot be played right now.");
       const drawResult = drawCards(room, player, 1);
 
@@ -877,6 +1004,15 @@ io.on("connection", (socket) => {
 
       emitGameState(roomCode);
       return;
+    }
+
+    // Snapshot legality info BEFORE the +4 lands (used only if the next player challenges).
+    let priorTopColor = null;
+    let priorHadMatching = false;
+    if (card.value === "+4") {
+      const ctx = buildPlusFourContext(player, topCard);
+      priorTopColor = ctx.priorColor;
+      priorHadMatching = ctx.hadMatchingColor;
     }
 
     const playedCard = { ...player.cards[handIndex] };
@@ -935,10 +1071,17 @@ io.on("connection", (socket) => {
 
     if (playedCard.value === "+2") {
       room.stackCount += 2;
+      room.challengeContext = null;
     } else if (playedCard.value === "+4") {
       room.stackCount += 4;
+      room.challengeContext = {
+        playerId: player.id,
+        priorColor: priorTopColor,
+        hadMatchingColor: priorHadMatching
+      };
     } else {
       room.stackCount = 0;
+      room.challengeContext = null;
     }
 
     if (playedCard.value === "reverse") {
@@ -949,15 +1092,103 @@ io.on("connection", (socket) => {
     advanceToNextTurn(roomCode, shouldSkip ? 2 : 1);
   });
 
+  socket.on("challengePlusFour", (roomCode) => {
+    const room = rooms[roomCode];
+    if (!room || !room.started || room.deckDecision) return;
+
+    // -- State machine guards: penalty must be active, top must be +4, rule must be on. --
+    const rules = room.rules || {};
+    if (!rules.challengePlusFour) return;
+    if (!room.stackCount || room.stackCount < 4) return;
+
+    const topCard = getTopCard(room);
+    if (!topCard || topCard.value !== "+4") return;
+
+    // Only the player whose turn it is (the target) can challenge.
+    const challenger = room.players[room.turn];
+    if (!challenger || challenger.id !== socket.id) {
+      sendError(socket, "It is not your turn to challenge.");
+      return;
+    }
+
+    const ctx = room.challengeContext;
+    if (!ctx || !ctx.playerId || ctx.playerId === socket.id) return;
+
+    const offender = room.players.find((p) => p.id === ctx.playerId);
+    if (!offender) return;
+
+    // Lock further actions on this penalty: clear stack and context immediately.
+    const accumulated = room.stackCount;
+    room.stackCount = 0;
+    room.challengeContext = null;
+
+    if (ctx.hadMatchingColor) {
+      // Successful challenge: offender pays the accumulated draws; challenger keeps their turn.
+      const drawResult = drawCards(room, offender, accumulated);
+      io.to(offender.id).emit("penalty");
+      io.to(roomCode).emit("challengeResolved", {
+        challengerId: challenger.id,
+        offenderId: offender.id,
+        success: true,
+        priorColor: ctx.priorColor,
+        drawn: drawResult.drawnCount
+      });
+
+      if (drawResult.needsDeckDecision) {
+        requestDeckDecision(roomCode, {
+          playerId: offender.id,
+          remainingDraws: drawResult.remainingCount,
+          advanceSteps: 0,
+          clearStackOnResume: false,
+          showPenalty: false
+        });
+        return;
+      }
+
+      // Challenger plays normally now — refresh turn timer, keep current turn.
+      scheduleTurn(roomCode);
+      emitGameState(roomCode);
+      return;
+    }
+
+    // Failed challenge: challenger draws accumulated + 2 (standard +6 for a +4),
+    // then turn advances past them.
+    const penalty = accumulated + 2;
+    const drawResult = drawCards(room, challenger, penalty);
+    io.to(challenger.id).emit("penalty");
+    io.to(roomCode).emit("challengeResolved", {
+      challengerId: challenger.id,
+      offenderId: offender.id,
+      success: false,
+      priorColor: ctx.priorColor,
+      drawn: drawResult.drawnCount
+    });
+
+    if (drawResult.needsDeckDecision) {
+      requestDeckDecision(roomCode, {
+        playerId: challenger.id,
+        remainingDraws: drawResult.remainingCount,
+        advanceSteps: 1,
+        clearStackOnResume: false,
+        showPenalty: false
+      });
+      return;
+    }
+
+    advanceToNextTurn(roomCode);
+  });
+
   socket.on("disconnect", () => {
     removePlayerFromRoom(socket.id);
+    removeSpectator(socket.id);
   });
 
   socket.on("sendReaction", (emoji) => {
     const allowed = ["❤️", "🔥", "😂", "👍", "😱", "🤡"];
     if (!allowed.includes(emoji)) return;
     const roomCode = Object.keys(rooms).find((code) =>
-      rooms[code].players.some((p) => p.id === socket.id)
+      rooms[code].players.some((p) => p.id === socket.id) ||
+      (rooms[code].spectators && rooms[code].spectators.has(socket.id))
     );
     if (!roomCode) return;
     const now = Date.now();
@@ -991,12 +1222,32 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("joinAsSpectator", ({ roomCode } = {}) => {
+    const code = (roomCode || "").trim().toUpperCase();
+    const room = rooms[code];
+    if (!room) {
+      sendError(socket, "Room not found.");
+      return;
+    }
+
+    if (!room.spectators) room.spectators = new Set();
+    room.spectators.add(socket.id);
+    socket.join(code);
+    socket.emit("spectatorJoined", code);
+    socket.emit("lobbyUpdated", getSafeRoom(code));
+    if (room.started) {
+      socket.emit("updateGame", getSafeRoom(code));
+    }
+  });
+
   socket.on("leaveRoom", () => {
     const roomCode = Object.keys(rooms).find((code) =>
-      rooms[code].players.some((p) => p.id === socket.id)
+      rooms[code].players.some((p) => p.id === socket.id) ||
+      (rooms[code].spectators && rooms[code].spectators.has(socket.id))
     );
     if (roomCode) socket.leave(roomCode);
     removePlayerFromRoom(socket.id);
+    removeSpectator(socket.id);
     socket.emit("leftRoom");
   });
 
