@@ -128,10 +128,17 @@
     <div id="powerEffect" class="power-effect" aria-hidden="true"></div>
 
     <div id="colorPicker" style="display:none;" onclick="if(event.target===this) cancelColorPicker()">
-      <button class="color-btn red" onclick="chooseColor('red')" aria-label="Choose red"></button>
-      <button class="color-btn green" onclick="chooseColor('green')" aria-label="Choose green"></button>
-      <button class="color-btn blue" onclick="chooseColor('blue')" aria-label="Choose blue"></button>
-      <button class="color-btn yellow" onclick="chooseColor('yellow')" aria-label="Choose yellow"></button>
+      <div class="color-picker-card">
+        <p class="color-picker-kicker">Wild Card</p>
+        <h3 class="color-picker-title">Choose a Color</h3>
+        <div class="color-picker-grid">
+          <button class="color-btn red"    onclick="chooseColor('red')"    aria-label="Choose red"></button>
+          <button class="color-btn green"  onclick="chooseColor('green')"  aria-label="Choose green"></button>
+          <button class="color-btn blue"   onclick="chooseColor('blue')"   aria-label="Choose blue"></button>
+          <button class="color-btn yellow" onclick="chooseColor('yellow')" aria-label="Choose yellow"></button>
+        </div>
+        <button class="color-picker-cancel" onclick="cancelColorPicker()">Cancel</button>
+      </div>
     </div>
 
     <div id="deckDecisionModal" class="overlay" style="display:none;">
