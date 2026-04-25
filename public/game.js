@@ -58,13 +58,26 @@ socket.on("loginError", (code) => {
 });
 
 function renderProfileSummary() {
-  const el = document.getElementById("profileStats");
-  if (!el || !userProfile || !userProfile.stats) return;
+  if (!userProfile) return;
+
+  const chip      = document.getElementById("profileChip");
+  const nameEl    = document.getElementById("profileChipName");
+  const statsEl   = document.getElementById("profileStats");
+  if (!chip) return;
+
+  if (nameEl && userProfile.name) nameEl.textContent = userProfile.name;
+
   const s = userProfile.stats;
-  const rate = s.games_played > 0
-    ? Math.round((s.games_won / s.games_played) * 100)
-    : 0;
-  el.textContent = `${s.games_won}W · ${s.games_lost}L · ${rate}% win · best streak ${s.best_streak}`;
+  if (statsEl) {
+    if (s && s.games_played > 0) {
+      const rate = Math.round((s.games_won / s.games_played) * 100);
+      statsEl.textContent = `${s.games_won}W · ${s.games_lost}L · ${rate}% · streak ${s.best_streak}`;
+    } else {
+      statsEl.textContent = "No games yet";
+    }
+  }
+
+  chip.hidden = false;
 }
 
 /* ---- Session persistence + reconnect ---- */

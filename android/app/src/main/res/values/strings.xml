@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Last Card Battle</string>
+    <string name="title_activity_main">Last Card Battle</string>
+    <string name="package_name">com.lastcardbattle.app</string>
+    <string name="custom_url_scheme">com.lastcardbattle.app</string>
+</resources>
