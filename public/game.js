@@ -78,6 +78,7 @@ function setScreen(screen) {
   menuScreen.style.display = screen === "menu" ? "block" : "none";
   lobbyScreen.style.display = screen === "lobby" ? "block" : "none";
   gameScreen.style.display = screen === "game" ? "block" : "none";
+  document.body.dataset.screen = screen;
 }
 
 function unlockAudio() {
@@ -376,9 +377,9 @@ function startTurnTimer(turnEndsAt) {
     timerLabel.innerText = `Time: ${secondsLeft}`;
     updateActiveTimerRing();
 
-    if (secondsLeft <= 5 && secondsLeft > 0 && secondsLeft !== lastTickSecond) {
+    if (secondsLeft === 5 && lastTickSecond !== 5) {
       playSound("timerTick");
-      lastTickSecond = secondsLeft;
+      lastTickSecond = 5;
     }
 
     if (secondsLeft === 0) {

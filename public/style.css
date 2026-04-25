@@ -221,6 +221,16 @@ button:disabled {
   background: var(--line);
 }
 
+/* Hide in-game overlays when not on the game screen */
+body:not([data-screen="game"]) #hand,
+body:not([data-screen="game"]) #toast,
+body:not([data-screen="game"]) #colorPicker,
+body:not([data-screen="game"]) #deckDecisionModal,
+body:not([data-screen="game"]) #powerEffect,
+body:not([data-screen="game"]) #winnerModal {
+  display: none !important;
+}
+
 /* -------- Lobby (waiting room) -------- */
 .lobby-screen {
   min-height: 100vh;
