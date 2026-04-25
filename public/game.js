@@ -1,5 +1,129 @@
 const socket = io();
 
+/* ---- Anonymous device login ---- */
+const DEVICE_ID_KEY = "lcb-device-id-v1";
+const PROFILE_KEY   = "lcb-profile-v1";
+
+function ensureDeviceId() {
+  try {
+    let id = localStorage.getItem(DEVICE_ID_KEY);
+    if (id && /^[a-zA-Z0-9_-]{8,64}$/.test(id)) return id;
+    // crypto.randomUUID is available in modern browsers.
+    id = (crypto.randomUUID && crypto.randomUUID()) ||
+         Math.random().toString(36).slice(2) + Date.now().toString(36);
+    id = id.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64);
+    if (id.length < 8) id = (id + "00000000").slice(0, 8);
+    localStorage.setItem(DEVICE_ID_KEY, id);
+    return id;
+  } catch {
+    return "anon-" + Date.now();
+  }
+}
+
+function readProfile() {
+  try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || "null"); } catch { return null; }
+}
+function writeProfile(p) {
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch {}
+}
+
+let userProfile = readProfile(); // { userId, name, avatar, stats }
+
+socket.on("loggedIn", (payload) => {
+  userProfile = payload;
+  writeProfile(payload);
+
+  // Pre-fill the name input if empty.
+  const nameInput = document.getElementById("name");
+  if (nameInput && !nameInput.value && payload.name) nameInput.value = payload.name;
+
+  renderProfileSummary();
+});
+
+socket.on("profileUpdated", (payload) => {
+  userProfile = { ...(userProfile || {}), ...payload };
+  writeProfile(userProfile);
+  renderProfileSummary();
+});
+
+socket.on("stats", (stats) => {
+  if (!userProfile) return;
+  userProfile = { ...userProfile, stats };
+  writeProfile(userProfile);
+  renderProfileSummary();
+});
+
+socket.on("loginError", (code) => {
+  console.warn("[auth]", code);
+});
+
+function renderProfileSummary() {
+  const el = document.getElementById("profileStats");
+  if (!el || !userProfile || !userProfile.stats) return;
+  const s = userProfile.stats;
+  const rate = s.games_played > 0
+    ? Math.round((s.games_won / s.games_played) * 100)
+    : 0;
+  el.textContent = `${s.games_won}W · ${s.games_lost}L · ${rate}% win · best streak ${s.best_streak}`;
+}
+
+/* ---- Session persistence + reconnect ---- */
+const SESSION_KEY = "lcb-session-v1";
+
+function readSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj.token !== "string" || typeof obj.roomCode !== "string") return null;
+    return obj;
+  } catch { return null; }
+}
+
+function writeSession(session) {
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch {}
+}
+
+function clearSession() {
+  try { localStorage.removeItem(SESSION_KEY); } catch {}
+}
+
+socket.on("session", ({ token, roomCode: code }) => {
+  if (typeof token === "string" && typeof code === "string") {
+    writeSession({ token, roomCode: code });
+  }
+});
+
+socket.on("sessionExpired", () => {
+  clearSession();
+});
+
+socket.on("sessionResumed", ({ roomCode: code }) => {
+  // Server has put us back in the room — DOM state will follow via lobbyUpdated/updateGame.
+  showToast("Reconnected", 1200);
+});
+
+// On (re)connect, login by device id, then try to resume any stored session.
+socket.on("connect", () => {
+  const deviceId = ensureDeviceId();
+  const cachedName = userProfile && userProfile.name;
+  socket.emit("loginDevice", { deviceId, name: cachedName });
+
+  const session = readSession();
+  if (session) {
+    socket.emit("resumeSession", session);
+  }
+});
+
+// On any connect attempt, prefill UI from cached profile so the menu doesn't look empty.
+window.addEventListener("DOMContentLoaded", () => {
+  if (userProfile && userProfile.name) {
+    const nameInput = document.getElementById("name");
+    if (nameInput && !nameInput.value) nameInput.value = userProfile.name;
+  }
+  renderProfileSummary();
+});
+
 let roomCode = "";
 let myCards = [];
 let currentRoom = null;
@@ -73,6 +197,16 @@ Object.values(soundEffects).forEach((audio) => {
 
 function getNameValue() {
   return document.getElementById("name").value.trim();
+}
+
+// If the user has typed a different name from the persisted profile,
+// push it to the server so future logins (and stats) match.
+function syncProfileNameIfChanged() {
+  const typed = getNameValue();
+  if (!typed || !userProfile || !userProfile.userId) return;
+  if (typed !== userProfile.name) {
+    socket.emit("updateProfile", { name: typed });
+  }
 }
 
 function setScreen(screen) {
@@ -233,6 +367,8 @@ function stopSound(name) {
 
 function closeWinnerModal() {
   winnerModal.style.display = "none";
+  // Game is over — drop the session so a refresh doesn't try to resume a finished match.
+  clearSession();
   setScreen("lobby");
 }
 
@@ -271,7 +407,7 @@ function createRoom() {
     alert("Enter your name first.");
     return;
   }
-
+  syncProfileNameIfChanged();
   playSound("buttonPress");
   socket.emit("createRoom", name);
 }
@@ -286,6 +422,7 @@ function joinRoom() {
     return;
   }
 
+  syncProfileNameIfChanged();
   playSound("buttonPress");
   roomCode = code;
   socket.emit("joinRoom", { roomCode: code, playerName: name });
@@ -373,6 +510,7 @@ function startBotMatch(difficulty = "normal") {
     return;
   }
 
+  syncProfileNameIfChanged();
   playSound("buttonPress");
   socket.emit("startBotMatch", { name, difficulty });
 }
@@ -1046,10 +1184,15 @@ function renderPlayers(room) {
     `;
 
     if (isActive) item.classList.add("active");
+    if (player.disconnected) item.classList.add("is-disconnected");
 
     playersElement.appendChild(item);
   });
 }
+
+socket.on("playerDropped", ({ playerName }) => {
+  if (playerName) showToast(`${playerName} disconnected`, 1400);
+});
 
 function updateActiveTimerRing() {
   const activeAvatar = playersElement.querySelector(".player.active .timer-ring .progress");
@@ -1358,6 +1501,7 @@ socket.on("invalidMove", (message) => {
 });
 
 socket.on("leftRoom", () => {
+  clearSession();
   clearInterval(timerInterval);
   stopSound("timerTick");
   currentRoom = null;
@@ -1404,6 +1548,9 @@ socket.on("gameOver", (winnerName) => {
   winnerModal.style.display = "flex";
   resetRematchButton();
   burstConfetti();
+
+  // Refresh stats so the menu reflects the result the next time the player goes back.
+  if (userProfile && userProfile.userId) socket.emit("requestStats");
 });
 
 /* ----------------------- Emoji reactions ----------------------- */

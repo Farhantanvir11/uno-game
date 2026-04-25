@@ -1011,6 +1011,27 @@ body:not([data-screen="game"]) #winnerModal {
   filter: drop-shadow(0 0 6px rgba(255, 213, 79, 0.7));
 }
 
+/* Disconnected player: dim everything and show a pulsing offline dot. */
+.player.is-disconnected .player-avatar { filter: grayscale(0.7) brightness(0.65); }
+.player.is-disconnected .player-name   { opacity: 0.6; }
+.player.is-disconnected .player-avatar::after {
+  content: "";
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #e74c3c;
+  border: 2px solid #1a1530;
+  box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.6);
+  animation: disconnectPulse 1.6s ease-in-out infinite;
+}
+@keyframes disconnectPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.6); }
+  50%      { box-shadow: 0 0 0 8px rgba(231, 76, 60, 0); }
+}
+
 .player.active .player-avatar {
   animation: activePulse 1.4s ease-in-out infinite;
 }
@@ -2547,6 +2568,28 @@ body:not([data-screen="game"]) #winnerModal {
 .winner-close:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
+}
+
+/* -------- Profile strip on landing menu -------- */
+.profile-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 213, 79, 0.25);
+  background: linear-gradient(180deg, rgba(255, 213, 79, 0.10), rgba(255, 213, 79, 0.04));
+  color: #fff5c7;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+.profile-strip .profile-label { font-size: 1rem; }
+.profile-strip .profile-stats { letter-spacing: 0.01em; opacity: 0.92; }
+
+@media (max-width: 560px) {
+  .profile-strip { font-size: 0.78rem; padding: 7px 10px; }
 }
 
 /* -------- Challenge +4 modal -------- */

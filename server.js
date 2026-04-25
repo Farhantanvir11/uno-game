@@ -1,6 +1,8 @@
 const express = require("express");
+const crypto = require("crypto");
 const { createServer } = require("http");
 const { Server } = require("socket.io");
+const dbApi = require("./db");
 
 const app = express();
 const httpServer = createServer(app);
@@ -13,16 +15,39 @@ const TURN_DURATION_MS = 15000;
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 5;
 const DEFAULT_HAND_SIZE = 7;
+// Reconnect grace: how long a dropped player keeps their seat before being removed.
+const RECONNECT_GRACE_MS  = 30 * 1000;
+// Lobby drop is more lenient: waiting players can refresh / change network freely.
+const LOBBY_GRACE_MS      = 60 * 1000;
+// Idle-room garbage collection interval and threshold.
+const ROOM_GC_INTERVAL_MS = 5  * 60 * 1000;
+const ROOM_IDLE_LIMIT_MS  = 60 * 60 * 1000;
 const rooms = {};
 
+function makeToken() {
+  return crypto.randomBytes(16).toString("hex");
+}
+
 function createPlayer(socket, name) {
+  // Attach the authenticated userId (from socket.data.userId, set on loginDevice).
+  // Anonymous sockets are still allowed; their stats simply won't be persisted.
   return {
     id: socket.id,
-    name: (name || "Player").trim().slice(0, 20) || "Player",
+    token: makeToken(),
+    userId: (socket.data && socket.data.userId) || null,
+    name: dbApi.sanitizeName(name),
     cards: [],
     calledUNO: false,
-    isBot: false
+    cardsPlayed: 0,
+    isBot: false,
+    disconnected: false,
+    disconnectTimer: null
   };
+}
+
+// Mark a player's room as recently active so the GC won't reap it.
+function touchRoom(room) {
+  if (room) room.lastActivityAt = Date.now();
 }
 
 const BOT_DIFFICULTIES = new Set(["easy", "normal", "hard"]);
@@ -102,7 +127,9 @@ function getSafeRoom(roomCode) {
     players: room.players.map((player) => ({
       id: player.id,
       name: player.name,
-      cardCount: player.cards.length
+      cardCount: player.cards.length,
+      isBot: !!player.isBot,
+      disconnected: !!player.disconnected
     })),
     started: room.started,
     turn: room.turn,
@@ -129,6 +156,7 @@ function getSafeRoom(roomCode) {
 }
 
 function emitLobby(roomCode) {
+  touchRoom(rooms[roomCode]);
   io.to(roomCode).emit("lobbyUpdated", getSafeRoom(roomCode));
 }
 
@@ -137,6 +165,7 @@ function emitGameState(roomCode) {
   if (!room) {
     return;
   }
+  touchRoom(room);
 
   room.players.forEach((player) => {
     if (!player.isBot) {
@@ -313,6 +342,21 @@ function finishGame(roomCode, winnerName) {
   room.rematchVotes = new Set();
   stopBotTurn(room);
   stopTurnTimer(room);
+
+  // Persist stats for every authenticated human player in this game.
+  try {
+    const outcomes = room.players
+      .filter((p) => !p.isBot && p.userId)
+      .map((p) => ({
+        userId: p.userId,
+        won: p.name === winnerName,
+        cardsPlayed: p.cardsPlayed || 0
+      }));
+    if (outcomes.length > 0) dbApi.recordGameResult(outcomes);
+  } catch (err) {
+    console.error("[stats] failed to record game result:", err);
+  }
+
   io.to(roomCode).emit("gameOver", winnerName);
   emitLobby(roomCode);
 }
@@ -477,6 +521,8 @@ function buildPlusFourContext(player, topCard) {
 function applyCardPlay(roomCode, player, playedCard, priorContext) {
   const room = rooms[roomCode];
   if (!room) return;
+
+  player.cardsPlayed = (player.cardsPlayed || 0) + 1;
 
   if (player.cards.length === 1 && !player.calledUNO) {
     player.calledUNO = true;
@@ -700,6 +746,13 @@ function removePlayerFromRoom(socketId) {
     return;
   }
 
+  // Clear any reconnect-grace timer attached to this player.
+  const removed = room.players[index];
+  if (removed && removed.disconnectTimer) {
+    clearTimeout(removed.disconnectTimer);
+    removed.disconnectTimer = null;
+  }
+
   room.players.splice(index, 1);
 
   if (room.players.length === 0 || room.players.every((player) => player.isBot)) {
@@ -738,12 +791,75 @@ function removePlayerFromRoom(socketId) {
 }
 
 io.on("connection", (socket) => {
+  // ----- Anonymous device login -----
+  // Establishes a stable userId for this socket; required for stats persistence.
+  socket.on("loginDevice", ({ deviceId, name } = {}) => {
+    if (!dbApi.isValidDeviceId(deviceId)) {
+      socket.emit("loginError", "invalid_device_id");
+      return;
+    }
+    try {
+      const { user, stats, created } = dbApi.loginDevice(deviceId, name);
+      // If the client supplied a name and this is an existing account whose name
+      // doesn't match, update it (lets users change their name from the menu).
+      let final = user;
+      if (!created && typeof name === "string") {
+        const cleaned = dbApi.sanitizeName(name, user.name);
+        if (cleaned !== user.name) {
+          final = dbApi.updateProfile(user.id, { name: cleaned }) || user;
+        }
+      }
+      socket.data.userId = final.id;
+      socket.emit("loggedIn", {
+        userId: final.id,
+        name: final.name,
+        avatar: final.avatar,
+        stats
+      });
+    } catch (err) {
+      console.error("[auth] loginDevice failed:", err);
+      socket.emit("loginError", "server_error");
+    }
+  });
+
+  socket.on("updateProfile", ({ name, avatar } = {}) => {
+    const userId = socket.data && socket.data.userId;
+    if (!userId) {
+      socket.emit("loginError", "not_logged_in");
+      return;
+    }
+    const user = dbApi.updateProfile(userId, { name, avatar });
+    if (!user) {
+      socket.emit("loginError", "user_not_found");
+      return;
+    }
+    // Reflect the new name in any active room the user happens to be in.
+    Object.keys(rooms).forEach((code) => {
+      const player = rooms[code].players.find((p) => p.userId === userId);
+      if (!player) return;
+      player.name = user.name;
+      if (rooms[code].started) emitGameState(code); else emitLobby(code);
+    });
+    socket.emit("profileUpdated", {
+      userId: user.id,
+      name: user.name,
+      avatar: user.avatar
+    });
+  });
+
+  socket.on("requestStats", () => {
+    const userId = socket.data && socket.data.userId;
+    if (!userId) return;
+    socket.emit("stats", dbApi.getStats(userId));
+  });
+
   socket.on("createRoom", (playerName) => {
     const roomCode = generateRoomCode();
+    const player = createPlayer(socket, playerName);
 
     rooms[roomCode] = {
       hostId: socket.id,
-      players: [createPlayer(socket, playerName)],
+      players: [player],
       started: false,
       handSize: DEFAULT_HAND_SIZE,
       soloMode: false,
@@ -755,10 +871,12 @@ io.on("connection", (socket) => {
       timer: null,
       botTurnTimer: null,
       turnEndsAt: null,
-      deckDecision: null
+      deckDecision: null,
+      lastActivityAt: Date.now()
     };
 
     socket.join(roomCode);
+    socket.emit("session", { token: player.token, roomCode });
     socket.emit("roomCreated", roomCode);
     emitLobby(roomCode);
   });
@@ -782,8 +900,11 @@ io.on("connection", (socket) => {
       return;
     }
 
-    room.players.push(createPlayer(socket, playerName));
+    const player = createPlayer(socket, playerName);
+    room.players.push(player);
+    touchRoom(room);
     socket.join(normalizedCode);
+    socket.emit("session", { token: player.token, roomCode: normalizedCode });
     socket.emit("joinedRoom", normalizedCode);
     emitLobby(normalizedCode);
   });
@@ -800,6 +921,7 @@ io.on("connection", (socket) => {
       started: false,
       handSize: DEFAULT_HAND_SIZE,
       soloMode: true,
+      lastActivityAt: Date.now(),
       // Defaults match multiplayer; the host can toggle them in the lobby before starting.
       rules: {
         stacking:          true,
@@ -818,6 +940,7 @@ io.on("connection", (socket) => {
     };
 
     socket.join(roomCode);
+    socket.emit("session", { token: humanPlayer.token, roomCode });
     socket.emit("roomCreated", roomCode);
     emitLobby(roomCode);
   });
@@ -1180,22 +1303,92 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    removePlayerFromRoom(socket.id);
+    // Spectators are stateless — drop them immediately.
     removeSpectator(socket.id);
+
+    // Find the player's room (if any).
+    const code = Object.keys(rooms).find((c) =>
+      rooms[c].players.some((p) => p.id === socket.id)
+    );
+    if (!code) return;
+
+    const room = rooms[code];
+    const player = room.players.find((p) => p.id === socket.id);
+    if (!player || player.isBot) return;
+
+    // Mark as disconnected; the game continues. The turn timer auto-accepts/draws
+    // for them if it becomes their turn while disconnected.
+    player.disconnected = true;
+    if (player.disconnectTimer) clearTimeout(player.disconnectTimer);
+
+    const grace = room.started ? RECONNECT_GRACE_MS : LOBBY_GRACE_MS;
+    const lostTokenId = player.token; // capture before any reassignment
+    player.disconnectTimer = setTimeout(() => {
+      const r = rooms[code];
+      if (!r) return;
+      // If they reconnected meanwhile, the timer was cleared. Defensive recheck:
+      const stillThere = r.players.find((p) => p.token === lostTokenId);
+      if (!stillThere || !stillThere.disconnected) return;
+      removePlayerFromRoom(stillThere.id);
+    }, grace);
+
+    io.to(code).emit("playerDropped", { playerName: player.name, name: player.name });
+    if (room.started) emitGameState(code);
+    else emitLobby(code);
   });
 
+  // ----- Reconnect by token -----
+  socket.on("resumeSession", ({ token, roomCode } = {}) => {
+    const code = String(roomCode || "").trim().toUpperCase();
+    const room = rooms[code];
+    if (!room || typeof token !== "string" || token.length !== 32) {
+      socket.emit("sessionExpired");
+      return;
+    }
+    const player = room.players.find((p) => p.token === token);
+    if (!player) {
+      socket.emit("sessionExpired");
+      return;
+    }
+
+    if (player.disconnectTimer) {
+      clearTimeout(player.disconnectTimer);
+      player.disconnectTimer = null;
+    }
+
+    player.id = socket.id;
+    player.disconnected = false;
+    if (player.userId) socket.data.userId = player.userId;
+    socket.join(code);
+    touchRoom(room);
+
+    socket.emit("session", { token: player.token, roomCode: code });
+    socket.emit("sessionResumed", { roomCode: code });
+
+    if (room.started) {
+      // Replay the bare minimum the client needs to render the in-game view.
+      socket.emit("gameStarted");
+      io.to(socket.id).emit("yourCards", player.cards);
+      emitGameState(code);
+    } else {
+      emitLobby(code);
+    }
+  });
+
+  // Per-socket reaction rate limit: 1 reaction per 600ms.
+  let lastReactionAt = 0;
   socket.on("sendReaction", (emoji) => {
+    const now = Date.now();
+    if (now - lastReactionAt < 600) return;
+    lastReactionAt = now;
+
     const allowed = ["❤️", "🔥", "😂", "👍", "😱", "🤡"];
-    if (!allowed.includes(emoji)) return;
+    if (typeof emoji !== "string" || !allowed.includes(emoji)) return;
     const roomCode = Object.keys(rooms).find((code) =>
       rooms[code].players.some((p) => p.id === socket.id) ||
       (rooms[code].spectators && rooms[code].spectators.has(socket.id))
     );
     if (!roomCode) return;
-    const now = Date.now();
-    if (!socket._lastReactionAt) socket._lastReactionAt = 0;
-    if (now - socket._lastReactionAt < 700) return;
-    socket._lastReactionAt = now;
 
     io.to(roomCode).emit("reaction", { playerId: socket.id, emoji });
   });
@@ -1266,6 +1459,31 @@ io.on("connection", (socket) => {
     resolveDeckDecision(roomCode, action);
   });
 });
+
+// Idle-room garbage collector — sweeps rooms that have had no activity for a while.
+// Active rooms are touched on every meaningful event via emitGameState/emitLobby.
+setInterval(() => {
+  const now = Date.now();
+  Object.keys(rooms).forEach((code) => {
+    const room = rooms[code];
+    if (!room) return;
+
+    const last = room.lastActivityAt || 0;
+    const idle = now - last > ROOM_IDLE_LIMIT_MS;
+    const onlyBots = room.players.length > 0 && room.players.every((p) => p.isBot);
+    const everyoneDropped =
+      room.players.length > 0 && room.players.every((p) => p.isBot || p.disconnected);
+
+    if (idle || onlyBots || everyoneDropped) {
+      stopBotTurn(room);
+      stopTurnTimer(room);
+      room.players.forEach((p) => {
+        if (p.disconnectTimer) clearTimeout(p.disconnectTimer);
+      });
+      delete rooms[code];
+    }
+  });
+}, ROOM_GC_INTERVAL_MS).unref?.();
 
 httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on http://localhost:${PORT}`);
