@@ -1596,6 +1596,36 @@ body:not([data-screen="game"]) #winnerModal {
   color: #fff;
 }
 
+@media (max-width: 560px) {
+  #colorPicker { padding: 16px; }
+
+  .color-picker-card {
+    width: min(94vw, 340px);
+    padding: 16px 16px 14px;
+    border-radius: 18px;
+  }
+
+  .color-picker-kicker { font-size: 0.62rem; letter-spacing: 0.2em; }
+  .color-picker-title  { font-size: 1.1rem; margin-bottom: 12px; }
+
+  .color-picker-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .color-picker-grid .color-btn {
+    width: 56px;
+    height: 56px;
+    border-width: 3px;
+  }
+
+  .color-picker-cancel {
+    padding: 8px 14px;
+    font-size: 0.88rem;
+  }
+}
+
 .overlay-card {
   width: min(92vw, 430px);
   padding: 26px;
