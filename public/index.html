@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Last Card Battle</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -10,44 +10,58 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="menu" class="screen landing-screen">
-    <div id="profileChip" class="profile-chip" aria-live="polite" hidden>
+  <!-- Launch intro animation -->
+  <div id="introOverlay" class="intro-overlay" aria-hidden="true">
+    <div class="intro-stage">
+      <div class="intro-card intro-card--a">A</div>
+      <div class="intro-card intro-card--b">K</div>
+      <div class="intro-card intro-card--c">Q</div>
+      <div class="intro-title">Last Card<br><span>Battle</span></div>
+    </div>
+  </div>
+
+  <!-- ========== LANDING SCREEN ========== -->
+  <div id="menu" class="screen landing-screen-v2">
+    <!-- Profile chip kept hidden on landing v2 (stats live in leaderboard now) -->
+    <div id="profileChip" class="profile-chip" aria-live="polite" hidden style="display:none !important;">
       <span class="pc-icon" aria-hidden="true">🏆</span>
       <span class="pc-text">
         <span class="pc-name" id="profileChipName">Player</span>
         <span class="pc-stats" id="profileStats">—</span>
       </span>
     </div>
-    <div class="landing-shell">
-      <div class="hero-art" aria-hidden="true"></div>
 
-      <div class="hero-copy">
-        <p class="eyebrow">Realtime card duels</p>
-        <h1 class="logo">Last Card Battle</h1>
-        <p class="subtitle">Create a room, share the code, and race your friends to the final play.</p>
+    <!-- Hero stage: image + icons (top-right) + CTAs (bottom) -->
+    <div class="hero-stage">
+      <img src="assets/last-card-battle-hero.png" alt="Last Card Battle" class="hero-image" onerror="this.style.display='none'"/>
+
+      <!-- Action icons inside the image's top-right corner -->
+      <div class="top-actions">
+        <button class="top-action-btn" type="button" onclick="openLeaderboard()" aria-label="Leaderboard" title="Leaderboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/>
+            <path d="M17 4h3v3a3 3 0 0 1-3 3M7 4H4v3a3 3 0 0 0 3 3"/>
+          </svg>
+        </button>
+        <button class="top-action-btn" type="button" onclick="openSettings()" aria-label="Settings" title="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
       </div>
 
-      <div class="menu-card">
-        <input id="name" placeholder="Your name" maxlength="20">
-
-        <div class="menu-actions">
-          <button onclick="createRoom()">Create Room</button>
-        </div>
-
-        <div class="divider"><span>or jump into a room</span></div>
-
-        <input id="roomCode" placeholder="Room Code" maxlength="5">
-
-        <div class="menu-actions">
-          <button class="secondary-btn" onclick="joinRoom()">Join Room</button>
-        </div>
-
-        <button class="bot-mode-btn" onclick="openBotDifficulty()" aria-label="Play against robot">
-          <span class="bot-icon" aria-hidden="true">🤖</span>
-          <span>Play With Bot</span>
+      <div class="hero-cta-overlay">
+        <button class="cta-primary" type="button" onclick="goToFriends()">
+          <span class="cta-shine"></span>
+          Play with Friends
         </button>
-
-        <button class="link-btn" onclick="openTutorial()" type="button">
+        <span class="cta-or">or</span>
+        <button class="cta-secondary" type="button" onclick="goToBots()">
+          <span class="bot-icon" aria-hidden="true">🤖</span>
+          Bots
+        </button>
+        <button class="how-to-play-link" type="button" onclick="openTutorial()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="10"/>
             <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
@@ -55,14 +69,136 @@
           </svg>
           How to Play
         </button>
+        <p class="credit-v2">developed by <span>Farhan Tanvir</span></p>
       </div>
     </div>
 
-    <p class="credit">Designed &amp; developed by <span>Farhan Tanvir</span></p>
+    <!-- Hidden name field used by underlying logic -->
+    <input id="name" type="hidden" maxlength="20"/>
+  </div>
 
-    <button id="musicToggleBtn" class="music-toggle" type="button" onclick="toggleMusic()" aria-label="Toggle background music" title="Toggle music">
-      <span id="musicToggleLabel" class="music-icon" aria-hidden="true">♪</span>
-    </button>
+  <!-- ========== FRIENDS SUB-SCREEN ========== -->
+  <div id="friendsMenu" class="screen friends-screen" style="display:none;">
+    <div class="friends-shell">
+      <div class="friends-card">
+        <p class="eyebrow">Battle Together</p>
+        <h2 class="friends-title">Play with Friends</h2>
+        <p class="friends-sub">Create a room and share the code, or join one with a code.</p>
+
+        <label class="field-label" for="friendsName">Your name</label>
+        <input id="friendsName" placeholder="e.g. Farhan" maxlength="20" autocomplete="off">
+
+        <div class="menu-actions">
+          <button class="friends-cta friends-cta--primary" type="button" onclick="createRoomFromFriends()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Create Room
+          </button>
+        </div>
+
+        <div class="divider"><span>or join a room</span></div>
+
+        <label class="field-label" for="roomCode">Room code</label>
+        <input id="roomCode" placeholder="ABCDE" maxlength="5" autocomplete="off" style="text-transform:uppercase; letter-spacing:.3em; text-align:center; font-weight:700;">
+
+        <div class="menu-actions">
+          <button class="friends-cta friends-cta--ghost" type="button" onclick="joinRoomFromFriends()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M5 12h14M13 5l7 7-7 7"/>
+            </svg>
+            Join Room
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== SETTINGS PANEL ========== -->
+  <div id="settingsModal" class="settings-overlay" style="display:none;" onclick="if(event.target===this) closeSettings()">
+    <div class="settings-card">
+      <button class="tutorial-close" type="button" onclick="closeSettings()" aria-label="Close">&times;</button>
+      <div class="settings-header">
+        <div class="settings-glow"></div>
+        <h3 class="settings-title">Settings</h3>
+        <p class="settings-sub">Tune your experience</p>
+      </div>
+
+      <div class="settings-row" data-setting="sfx">
+        <div class="settings-row-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+          </svg>
+        </div>
+        <div class="settings-row-text">
+          <strong>Game Sound</strong>
+          <span>Card flips, draw, win cues</span>
+        </div>
+        <button id="sfxToggle" class="switch" type="button" role="switch" aria-checked="true" onclick="toggleSfx()">
+          <span class="switch-knob"></span>
+        </button>
+      </div>
+
+      <div class="settings-row" data-setting="music">
+        <div class="settings-row-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 18V5l12-2v13"/>
+            <circle cx="6" cy="18" r="3"/>
+            <circle cx="18" cy="16" r="3"/>
+          </svg>
+        </div>
+        <div class="settings-row-text">
+          <strong>Background Music</strong>
+          <span>Ambient menu &amp; gameplay theme</span>
+        </div>
+        <button id="musicToggle" class="switch" type="button" role="switch" aria-checked="true" onclick="toggleMusicV2()">
+          <span class="switch-knob"></span>
+        </button>
+      </div>
+
+      <button id="leaveRoomSetting" class="settings-leave" type="button" onclick="confirmLeaveRoom()" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+        Leave Room
+      </button>
+    </div>
+  </div>
+
+  <!-- ========== LEADERBOARD PLACEHOLDER ========== -->
+  <div id="leaderboardModal" class="settings-overlay" style="display:none;" onclick="if(event.target===this) closeLeaderboard()">
+    <div class="settings-card leaderboard-card">
+      <button class="tutorial-close" type="button" onclick="closeLeaderboard()" aria-label="Close">&times;</button>
+      <div class="settings-header">
+        <div class="settings-glow"></div>
+        <h3 class="settings-title">Leaderboard</h3>
+        <p class="settings-sub">Compete with players worldwide</p>
+      </div>
+      <div class="leaderboard-coming">
+        <div class="lb-icon">🚀</div>
+        <h4>Coming Soon</h4>
+        <p>Sign in with Google to track your win-rate, streaks, and strategy score across devices.</p>
+        <button class="cta-secondary" type="button" disabled>Sign in with Google</button>
+        <p class="lb-hint">Available in the next update.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== NAME PROMPT (first-time only) ========== -->
+  <div id="namePromptModal" class="settings-overlay" style="display:none;">
+    <div class="settings-card name-prompt-card">
+      <div class="settings-header">
+        <div class="settings-glow"></div>
+        <h3 class="settings-title">What should we call you?</h3>
+        <p class="settings-sub">Your name appears to other players</p>
+      </div>
+      <input id="namePromptInput" placeholder="Your name" maxlength="20" autocomplete="off">
+      <button class="cta-primary" type="button" onclick="submitNamePrompt()">Continue</button>
+    </div>
   </div>
 
   <!-- Bot difficulty picker -->
@@ -80,7 +216,7 @@
             <span>Plays randomly. Great for learning.</span>
           </span>
         </button>
-        <button class="bot-diff-option is-active" data-difficulty="normal" onclick="confirmBotDifficulty('normal')">
+        <button class="bot-diff-option" data-difficulty="normal" onclick="confirmBotDifficulty('normal')">
           <span class="bot-diff-emoji">⚙️</span>
           <span class="bot-diff-text">
             <strong>Normal</strong>
@@ -94,6 +230,22 @@
             <span>Strategic. Saves wilds, attacks when you're close to winning.</span>
           </span>
         </button>
+      </div>
+
+      <div class="bot-rules">
+        <p class="bot-rules-title">House Rules</p>
+        <label class="bot-rule-row">
+          <input type="checkbox" id="soloRuleStacking" checked>
+          <span><strong>Stacking</strong> — chain +2 / +4 cards</span>
+        </label>
+        <label class="bot-rule-row">
+          <input type="checkbox" id="soloRuleDrawUntil">
+          <span><strong>Draw until playable</strong> — keep drawing (max 3) until you can play</span>
+        </label>
+        <label class="bot-rule-row">
+          <input type="checkbox" id="soloRuleChallenge">
+          <span><strong>Challenge +4</strong> — call out illegal +4s</span>
+        </label>
       </div>
     </div>
   </div>
@@ -200,23 +352,17 @@
     <div class="hud">
       <div id="roomLabel"></div>
       <div class="hud-meta">
-        <button id="muteBtn" class="hud-btn" onclick="toggleMute()">Sound: On</button>
-        <button id="leaveBtn" class="hud-btn hud-leave" onclick="confirmLeaveRoom()" title="Leave game">
+        <button id="settingsBtn" class="hud-btn hud-icon-btn" onclick="openSettings()" title="Settings" aria-label="Settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-            <polyline points="16 17 21 12 16 7"/>
-            <line x1="21" y1="12" x2="9" y2="12"/>
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
-          Leave
         </button>
         <div id="timer">Time: -</div>
       </div>
     </div>
 
-    <div class="controls">
-      <button id="drawBtn" onclick="drawCard()">Draw Card</button>
-      <button id="unoBtn" onclick="callUNO()" style="display:none;">Last Card!</button>
-    </div>
+    <button id="unoBtn" onclick="callUNO()" style="display:none;">Last Card!</button>
 
     <!-- Re-open pill: small floating chip if user dismissed the modal -->
     <button id="challengeReopen" class="challenge-reopen" onclick="openChallengeModal()" style="display:none;" aria-label="Reopen challenge prompt">
@@ -350,7 +496,16 @@
     </div>
   </div>
 
+  <script>
+    // Clean up intro overlay once its animation finishes
+    setTimeout(() => {
+      const intro = document.getElementById("introOverlay");
+      if (intro) intro.classList.add("is-done");
+    }, 2500);
+  </script>
   <script src="/socket.io/socket.io.js"></script>
+  <script src="shared/engine.js"></script>
+  <script src="shared/local-game.js"></script>
   <script src="game.js"></script>
   <script src="native.js"></script>
 </body>

@@ -1,4 +1,69 @@
-const socket = io();
+/* ---------- Transport bus ----------
+   Wraps Socket.IO so bot matches can run fully offline via LCB_LocalGame.
+   `socket` is a stable reference whose .emit/.on/.id route to either the
+   real cloud server or a local in-browser game runner. */
+const _realSocket = io({ autoConnect: true, reconnection: true });
+const _busListeners = Object.create(null);
+
+function _busOn(event, handler) {
+  (_busListeners[event] = _busListeners[event] || []).push(handler);
+}
+function _busDispatch(event, ...args) {
+  const list = _busListeners[event];
+  if (list) list.forEach((h) => { try { h(...args); } catch (e) { console.error(e); } });
+}
+// Forward every real-socket event into the bus.
+_realSocket.onAny((event, ...args) => _busDispatch(event, ...args));
+
+// Local-game instance is created lazily on first bot match.
+let _localGame = null;
+function _ensureLocalGame() {
+  if (_localGame) return _localGame;
+  if (!window.LCB_LocalGame) {
+    console.error("[LCB] LocalGame module missing");
+    return null;
+  }
+  _localGame = window.LCB_LocalGame.create((event, payload) => _busDispatch(event, payload));
+  return _localGame;
+}
+
+// Mode: "remote" (default) or "local" (offline bot match).
+let _transportMode = "remote";
+
+function setTransportLocal() {
+  _ensureLocalGame();
+  _transportMode = "local";
+}
+function setTransportRemote() {
+  if (_localGame) _localGame.shutdown();
+  _transportMode = "remote";
+}
+
+// Polymorphic socket facade — same shape the rest of game.js already uses.
+const socket = {
+  get id() {
+    return _transportMode === "local"
+      ? (_localGame ? _localGame.id : "local-self")
+      : _realSocket.id;
+  },
+  get connected() {
+    return _transportMode === "local" ? true : _realSocket.connected;
+  },
+  on: (event, handler) => _busOn(event, handler),
+  off: (event, handler) => {
+    const list = _busListeners[event];
+    if (!list) return;
+    const i = list.indexOf(handler);
+    if (i >= 0) list.splice(i, 1);
+  },
+  emit: (event, payload) => {
+    if (_transportMode === "local" && _localGame) {
+      _localGame.handle(event, payload);
+    } else {
+      _realSocket.emit(event, payload);
+    }
+  }
+};
 
 /* ---- Anonymous device login ---- */
 const DEVICE_ID_KEY = "lcb-device-id-v1";
@@ -147,7 +212,9 @@ let previousRoomSnapshot = null;
 let previousCardCount = 0;
 let previousHandLength = 0;
 let lastTopCardKey = "";
+let lastTurnPlayerId = "";
 let pendingCardElement = null;
+let pendingCardRect = null;
 let suppressNextDrawFlight = false;
 let audioUnlocked = false;
 let pendingDrawSound = false;
@@ -201,11 +268,31 @@ const soundEffects = {
   win: new Audio("/sounds/win.mp3"),
   unoCall: new Audio("/sounds/uno-call.mp3"),
   penalty: new Audio("/sounds/penalty.mp3"),
-  power: new Audio("/sounds/power.mp3")
+  power: new Audio("/sounds/power.mp3"),
+  intro: new Audio("/sounds/intro.mp3")
 };
+
+let introPlayed = false;
 
 Object.values(soundEffects).forEach((audio) => {
   audio.preload = "auto";
+});
+
+// Try to play the intro the moment the page is ready. In the Android APK
+// (where MediaPlaybackRequiresUserGesture is disabled) this succeeds. In
+// regular browsers the .play() promise is rejected by the autoplay policy,
+// in which case the first-interaction unlockAudio() path still triggers it.
+window.addEventListener("DOMContentLoaded", () => {
+  const intro = soundEffects.intro;
+  if (!intro || introPlayed) return;
+  const p = intro.play();
+  if (p && typeof p.then === "function") {
+    p.then(() => {
+      introPlayed = true;
+      audioUnlocked = true;
+      updateBgmPlayback();
+    }).catch(() => { /* autoplay blocked — wait for first tap */ });
+  }
 });
 
 function getNameValue() {
@@ -226,6 +313,10 @@ function setScreen(screen) {
   menuScreen.style.display = screen === "menu" ? "block" : "none";
   lobbyScreen.style.display = screen === "lobby" ? "block" : "none";
   gameScreen.style.display = screen === "game" ? "block" : "none";
+  // Friends sub-screen is auxiliary — always hide on lobby/game,
+  // and also when explicitly returning to menu.
+  const friendsScreen = document.getElementById("friendsMenu");
+  if (friendsScreen) friendsScreen.style.display = "none";
   document.body.dataset.screen = screen;
 }
 
@@ -282,6 +373,11 @@ function unlockAudio() {
   }
   audioUnlocked = true;
   updateBgmPlayback();
+  // One-shot intro sting on the user's very first interaction with the app.
+  if (!introPlayed) {
+    introPlayed = true;
+    playSound("intro");
+  }
 }
 
 function loadMutePreference() {
@@ -301,7 +397,11 @@ function saveMutePreference() {
 }
 
 function updateMuteButton() {
-  muteButton.innerText = isMuted ? "Sound: Off" : "Sound: On";
+  // Legacy <button id="muteBtn"> was removed; sound state is now shown in the
+  // settings panel via updateSettingsSwitches(). Keep a no-op for backwards
+  // compatibility with existing callsites.
+  if (muteButton) muteButton.innerText = isMuted ? "Sound: Off" : "Sound: On";
+  updateSettingsSwitches();
 }
 
 function toggleMute() {
@@ -486,6 +586,11 @@ function closeBotDifficulty() {
 }
 
 function confirmBotDifficulty(difficulty) {
+  // Update the visual selection immediately so user sees which was chosen.
+  const modal = document.getElementById("botDifficultyModal");
+  modal.querySelectorAll(".bot-diff-option").forEach((btn) => {
+    btn.classList.toggle("is-active", btn.dataset.difficulty === difficulty);
+  });
   try { localStorage.setItem(BOT_DIFFICULTY_KEY, difficulty); } catch {}
   closeBotDifficulty();
   startBotMatch(difficulty);
@@ -493,6 +598,8 @@ function confirmBotDifficulty(difficulty) {
 
 function leaveRoom() {
   socket.emit("leaveRoom");
+  // If we were in a local bot match, tear it down and return to cloud transport.
+  if (_transportMode === "local") setTransportRemote();
 }
 
 function requestRematch() {
@@ -513,6 +620,8 @@ function resetRematchButton() {
 function confirmLeaveRoom() {
   if (currentRoom?.started && !confirm("Leave the current match? You won't be able to rejoin.")) return;
   leaveRoom();
+  // Close the settings modal if it was used to trigger this.
+  closeSettings();
 }
 
 function startBotMatch(difficulty = "normal") {
@@ -525,7 +634,14 @@ function startBotMatch(difficulty = "normal") {
 
   syncProfileNameIfChanged();
   playSound("buttonPress");
-  socket.emit("startBotMatch", { name, difficulty });
+  // Bot matches always run locally — no network needed, works offline.
+  setTransportLocal();
+  const rules = {
+    stacking:          document.getElementById("soloRuleStacking")?.checked  ?? true,
+    drawUntilPlayable: document.getElementById("soloRuleDrawUntil")?.checked ?? false,
+    challengePlusFour: document.getElementById("soloRuleChallenge")?.checked ?? false
+  };
+  socket.emit("startBotMatch", { name, difficulty, rules });
 }
 
 function startGame() {
@@ -576,15 +692,20 @@ function chooseColor(color) {
 
   const card = pendingCard;
   const sourceEl = pendingCardElement;
+  const sourceRect = pendingCardRect;
   pendingCard = null;
   pendingCardElement = null;
+  pendingCardRect = null;
 
   const emit = () => {
     socket.emit("playCard", { roomCode, card, chosenColor: color });
     isPlayingCard = false;
   };
 
-  if (sourceEl && document.body.contains(sourceEl)) {
+  // Use stored rect if sourceEl was detached from DOM by renderHand.
+  if (sourceRect) {
+    animatePlayFlightFromRect(sourceRect, { ...card, color }, emit);
+  } else if (sourceEl && document.body.contains(sourceEl)) {
     animatePlayFlight(sourceEl, { ...card, color }, emit);
   } else {
     emit();
@@ -594,8 +715,13 @@ function chooseColor(color) {
 function cancelColorPicker() {
   if (colorPicker.style.display === "none") return;
   colorPicker.style.display = "none";
+  // Restore the wild/+4 card we optimistically hid in playCard().
+  if (pendingCardElement && document.body.contains(pendingCardElement)) {
+    pendingCardElement.style.visibility = "";
+  }
   pendingCard = null;
   pendingCardElement = null;
+  pendingCardRect = null;
 }
 
 function updateLobby(room) {
@@ -683,6 +809,18 @@ function copyRoomCode() {
   } catch {
     showToast(roomCode, 1200);
   }
+  flashCopiedState();
+}
+
+function flashCopiedState() {
+  const btn = document.getElementById("copyCodeBtn");
+  if (!btn) return;
+  if (btn._copyResetTimer) clearTimeout(btn._copyResetTimer);
+  btn.classList.add("copied");
+  btn._copyResetTimer = setTimeout(() => {
+    btn.classList.remove("copied");
+    btn._copyResetTimer = null;
+  }, 1100);
 }
 
 document.addEventListener("click", (e) => {
@@ -752,8 +890,18 @@ function playCard(card, sourceEl) {
   if (isPlayingCard) return; // guard against rapid double-taps during flight
 
   if (card.value === "wild" || card.value === "+4") {
+    // If a previous wild/+4 tap is still awaiting color choice, restore that
+    // card's visibility before we overwrite the pending refs (else it stays
+    // invisible until the next renderHand).
+    if (pendingCardElement && pendingCardElement !== sourceEl &&
+        document.body.contains(pendingCardElement)) {
+      pendingCardElement.style.visibility = "";
+    }
     pendingCard = card;
     pendingCardElement = sourceEl || null;
+    // Capture rect NOW before renderHand can wipe the DOM.
+    pendingCardRect = getElementRect(sourceEl);
+    if (sourceEl) sourceEl.style.visibility = "hidden";
     // Player chose to stack — close any open challenge prompt so the two modals never overlap.
     dismissChallengeModal();
     const reopen = document.getElementById("challengeReopen");
@@ -764,13 +912,19 @@ function playCard(card, sourceEl) {
 
   playSound("cardPlay");
   isPlayingCard = true;
+
+  // Capture rect NOW — local-game fires yourCards synchronously which wipes
+  // #hand before the animation finishes, detaching sourceEl mid-flight.
+  const capturedRect = getElementRect(sourceEl);
+  if (sourceEl) sourceEl.style.visibility = "hidden";
+
   const emit = () => {
     socket.emit("playCard", { roomCode, card });
     isPlayingCard = false;
   };
 
-  if (sourceEl) {
-    animatePlayFlight(sourceEl, card, emit);
+  if (capturedRect) {
+    animatePlayFlightFromRect(capturedRect, card, emit);
   } else {
     emit();
   }
@@ -853,29 +1007,144 @@ function animateDrawFlight(newCards) {
 
       const dx = targetRect.left - deckRect.left;
       const dy = targetRect.top - deckRect.top;
+      const spin = (Math.random() * 10 - 5).toFixed(1);
+      const duration = 480;
 
-      requestAnimationFrame(() => {
-        flying.style.transform = `translate(${dx}px, ${dy}px) rotate(${
-          (Math.random() * 10 - 5).toFixed(1)
-        }deg)`;
-      });
+      // Use WAAPI — reliable on Android WebView (CSS transitions from mount are not).
+      const anim = flying.animate(
+        [
+          { transform: "translate(0px,0px) rotate(0deg) scale(1)", opacity: 1 },
+          { transform: `translate(${dx}px,${dy}px) rotate(${spin}deg) scale(1)`, opacity: 1, offset: 0.75 },
+          { transform: `translate(${dx}px,${dy}px) rotate(${spin}deg) scale(1)`, opacity: 0 }
+        ],
+        { duration, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "forwards" }
+      );
 
-      // Flip face-up near the end of the flight.
-      setTimeout(() => flying.classList.add("flipped"), 360);
+      // Flip to face-up halfway through flight.
+      setTimeout(() => flying.classList.add("flipped"), duration * 0.55);
 
-      // Settle: reveal the real card, fade out the clone.
-      setTimeout(() => {
+      const reveal = () => {
         if (targetEl) targetEl.style.visibility = "";
-        flying.style.transition = "opacity 160ms ease";
-        flying.style.opacity = "0";
-      }, 640);
-
-      setTimeout(() => flying.remove(), 820);
+        flying.remove();
+      };
+      if (anim && anim.finished) {
+        anim.finished.then(reveal).catch(reveal);
+      } else {
+        setTimeout(reveal, duration + 40);
+      }
     }, i * 110);
   });
 }
 
+/* Fly a card from an opponent's tile to the discard pile (no source element to hide). */
+function animateOpponentPlayFlight(playerId, card) {
+  const anchor = getPlayerAnchor(playerId);
+  const topRect = getElementRect(topCardElement) || {
+    left: window.innerWidth / 2 - 42,
+    top: 72,
+    width: 84,
+    height: 120
+  };
+
+  const startLeft = anchor.x - 37;
+  const startTop  = anchor.y - 54;
+
+  const flying = document.createElement("div");
+  flying.className = "flying-card-simple";
+  flying.style.cssText = [
+    `position:fixed`,
+    `left:${startLeft}px`,
+    `top:${startTop}px`,
+    `width:74px`,
+    `height:106px`,
+    `z-index:2000`,
+    `pointer-events:none`,
+    `border-radius:14px`,
+    `overflow:hidden`
+  ].join(";");
+  flying.innerHTML = buildCardFaceHTML(card);
+  const innerCard = flying.firstElementChild;
+  if (innerCard) innerCard.setAttribute("style", "width:100%;height:100%;");
+  document.body.appendChild(flying);
+
+  const dx = topRect.left - startLeft;
+  const dy = topRect.top  - startTop;
+  const spin = (Math.random() * 30 - 15).toFixed(1);
+  const duration = 480;
+
+  const anim = flying.animate(
+    [
+      { transform: "translate(0px,0px) rotate(0deg) scale(1)" },
+      { transform: `translate(${dx}px,${dy}px) rotate(${spin}deg) scale(1.08)` }
+    ],
+    { duration, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "forwards" }
+  );
+
+  const cleanup = () => flying.remove();
+  if (anim && anim.finished) {
+    anim.finished.then(cleanup).catch(cleanup);
+  } else {
+    setTimeout(cleanup, duration + 40);
+  }
+}
+
+/* Same as animatePlayFlight but takes a pre-captured DOMRect (for wild/+4
+   where the source element may be detached by the time color is picked). */
+function animatePlayFlightFromRect(startRect, card, onComplete) {
+  const topRect = getElementRect(topCardElement) || {
+    left: window.innerWidth / 2 - 42,
+    top: 72,
+    width: 84,
+    height: 120
+  };
+
+  const flying = document.createElement("div");
+  flying.className = "flying-card-simple";
+  flying.style.cssText = [
+    `position:fixed`,
+    `left:${startRect.left}px`,
+    `top:${startRect.top}px`,
+    `width:${startRect.width || 72}px`,
+    `height:${startRect.height || 102}px`,
+    `z-index:2000`,
+    `pointer-events:none`,
+    `border-radius:14px`,
+    `overflow:hidden`
+  ].join(";");
+  flying.innerHTML = buildCardFaceHTML(card);
+  // Force the inner .card to fill the wrapper so it works at any viewport size.
+  const innerCard = flying.firstElementChild;
+  if (innerCard) innerCard.setAttribute("style", "width:100%;height:100%;");
+  document.body.appendChild(flying);
+
+  const dx = topRect.left - startRect.left;
+  const dy = topRect.top  - startRect.top;
+  const spin = (Math.random() * 20 - 10).toFixed(1);
+  const duration = 480;
+
+  const anim = flying.animate(
+    [
+      { transform: "translate(0px, 0px) rotate(0deg) scale(1)",    opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) rotate(${spin}deg) scale(1.05)`, opacity: 1 }
+    ],
+    { duration, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "forwards" }
+  );
+
+  const cleanup = () => { flying.remove(); onComplete(); };
+  if (anim && anim.finished) {
+    anim.finished.then(cleanup).catch(cleanup);
+  } else {
+    setTimeout(cleanup, duration + 40);
+  }
+}
+
 function animatePlayFlight(sourceEl, card, onComplete) {
+  const startRect = getElementRect(sourceEl);
+  if (!startRect) { onComplete(); return; }
+  animatePlayFlightFromRect(startRect, card, onComplete);
+}
+
+function _animatePlayFlight_unused(sourceEl, card, onComplete) {
   const startRect = getElementRect(sourceEl);
   const topRect = getElementRect(topCardElement) || {
     left: window.innerWidth / 2 - 37,
@@ -895,6 +1164,7 @@ function animatePlayFlight(sourceEl, card, onComplete) {
   flying.className = "flying-card play-flight flipped";
   flying.style.left = `${startRect.left}px`;
   flying.style.top = `${startRect.top}px`;
+  flying.style.transition = "none"; // we drive animation via WAAPI below
   flying.innerHTML = `
     <div class="flip-inner">
       <div class="flip-face back">${buildCardBackHTML()}</div>
@@ -905,22 +1175,36 @@ function animatePlayFlight(sourceEl, card, onComplete) {
   const dx = topRect.left - startRect.left;
   const dy = topRect.top - startRect.top;
   const spin = (Math.random() * 30 - 15).toFixed(1);
+  const duration = 520;
 
-  requestAnimationFrame(() => {
-    flying.style.transform = `translate(${dx}px, ${dy}px) rotate(${spin}deg) scale(1.08)`;
-  });
+  // Web Animations API — works reliably across mobile WebViews
+  // (CSS transition-from-mount is flaky on Android Chromium WebView).
+  const anim = flying.animate(
+    [
+      { transform: "translate(0px, 0px) rotate(0deg) scale(1)" },
+      { transform: `translate(${dx}px, ${dy}px) rotate(${spin}deg) scale(1.08)` }
+    ],
+    { duration, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "forwards" }
+  );
 
-  setTimeout(() => {
+  const cleanup = () => {
     flying.remove();
     onComplete();
-  }, 460);
+  };
+  if (anim && anim.finished) {
+    anim.finished.then(cleanup).catch(cleanup);
+  } else {
+    setTimeout(cleanup, duration + 40);
+  }
 }
 
-function isCardPlayable(card, top, stackCount) {
+function isCardPlayable(card, top, stackCount, rules) {
   if (!top) return true;
   if (stackCount > 0) {
+    if (rules && rules.stacking === false) return false;
     if (top.value === "+4") return card.value === "+4";
     if (top.value === "+2") return card.value === "+2" || card.value === "+4";
+    return false;
   }
   if (card.color === "black") return true;
   return card.color === top.color || card.value === top.value;
@@ -938,7 +1222,7 @@ function renderHand(room) {
     cardElement.innerHTML = buildCardInnerHTML(card);
     cardElement.disabled = !isMyTurn;
 
-    const playable = isMyTurn && isCardPlayable(card, top, room.stackCount);
+    const playable = isMyTurn && isCardPlayable(card, top, room.stackCount, room.rules);
     if (playable) {
       cardElement.classList.add("playable");
       playableCards.push({ idx, el: cardElement });
@@ -954,7 +1238,8 @@ function renderHand(room) {
   previousHandLength = myCards.length;
 
   unoButton.style.display = myCards.length === 1 ? "inline-block" : "none";
-  drawButton.disabled = !isMyTurn;
+  if (drawButton) drawButton.disabled = !isMyTurn;
+  if (deckElement) deckElement.classList.toggle("is-drawable", isMyTurn);
 
   // Challenge +4: drive modal + reopen pill from server's canChallenge flag.
   syncChallengeUi(room, isMyTurn);
@@ -1122,7 +1407,7 @@ function hashString(str) {
 }
 
 function getAvatarFor(player) {
-  if (player.id && player.id.startsWith("bot:")) {
+  if (player.isBot || (player.id && (player.id.startsWith("bot:") || player.id.startsWith("local-bot")))) {
     return { url: BOT_AVATAR_URL, color: "#37474f" };
   }
   const seed = hashString(player.id || player.name || "player");
@@ -1151,7 +1436,9 @@ const OPPONENT_SEATS = {
     { xPct: 16, yPct: 66 }, { xPct: 84, yPct: 66 }
   ]
 };
-const ME_SEAT = { xPct: 50, yPct: 80 };
+// Anchor the player's own tile to the bottom-LEFT, beside the hand strip,
+// so it stays visible on every viewport regardless of how tall the hand gets.
+const ME_SEAT = { xPct: 8, yPct: 88 };
 
 function renderPlayers(room) {
   playersElement.innerHTML = "";
@@ -1167,9 +1454,13 @@ function renderPlayers(room) {
     let y;
 
     if (isMe) {
-      x = (ME_SEAT.xPct / 100) * W;
-      // Keep the tile above the hand strip regardless of viewport height
-      y = Math.min((ME_SEAT.yPct / 100) * H, H - 200);
+      // Side-anchored: hugs the bottom-left corner so cards never cover it.
+      // On narrow phones, push slightly inward so the tile isn't clipped.
+      const minX = 70;          // tile half-width (~70px)
+      x = Math.max(minX, (ME_SEAT.xPct / 100) * W);
+      // Use visualViewport height when available — unaffected by URL-bar resize.
+      const stableH = (window.visualViewport ? window.visualViewport.height : H);
+      y = stableH - 110;
     } else {
       const oppIdx = opponents.findIndex((p) => p.id === player.id);
       const seat = seats[oppIdx] || { xPct: 50, yPct: 20 };
@@ -1269,11 +1560,13 @@ function updateDirectionIndicator(room) {
   }
 }
 
+let lastAnnouncedDiscardLen = 0;
 function announceCardEffect(room) {
   const top = room.discard[room.discard.length - 1];
   if (!top) return;
-  const prevDiscardLen = previousRoomSnapshot?.discard?.length || 0;
-  if (room.discard.length <= prevDiscardLen) return; // only on new plays
+  const len = room.discard.length;
+  if (len <= lastAnnouncedDiscardLen) return; // only on genuinely new plays
+  lastAnnouncedDiscardLen = len;
   if (!["reverse", "skip", "+2", "+4", "wild"].includes(top.value)) return;
   playSound("power");
   showPowerCardEffect(top);
@@ -1282,11 +1575,21 @@ function announceCardEffect(room) {
 function showPowerCardEffect(card) {
   const host = document.getElementById("powerEffect");
   if (!host) return;
-  host.innerHTML = buildPowerEffectHTML(card);
-  host.classList.remove("show");
-  void host.offsetWidth;
-  host.classList.add("show");
-  setTimeout(() => host.classList.remove("show"), 1200);
+  // Build a fresh child wrapper each call so its CSS animations always
+  // (re)start from frame 0 — toggling classes on a recycled host is flaky
+  // when two power cards land in quick succession.
+  host.innerHTML = "";
+  const wrap = document.createElement("div");
+  wrap.className = "power-effect-instance show";
+  wrap.style.cssText =
+    "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;";
+  wrap.innerHTML = buildPowerEffectHTML(card);
+  host.classList.add("show"); // keeps backwards-compat with descendant `.power-effect.show .fx-*` selectors
+  host.appendChild(wrap);
+  setTimeout(() => {
+    wrap.remove();
+    if (!host.children.length) host.classList.remove("show");
+  }, 1200);
 }
 
 function buildPowerEffectHTML(card) {
@@ -1447,9 +1750,11 @@ socket.on("gameStarted", () => {
   deckDecisionModal.style.display = "none";
   winnerModal.style.display = "none";
   previousRoomSnapshot = null;
+  lastAnnouncedDiscardLen = 0;
   previousCardCount = 0;
   previousHandLength = 0;
   lastTopCardKey = "";
+  lastTurnPlayerId = "";
   stackClearedTopKey = null;
   lastTickSecond = -1;
   pendingCard = null;
@@ -1482,6 +1787,30 @@ socket.on("yourCards", (cards) => {
 });
 
 socket.on("updateGame", (room) => {
+  // Detect an opponent card play: top card changed AND it wasn't our own play.
+  // lastTurnPlayerId = active player from PREVIOUS update.
+  // After a play, turn has already advanced, so previous-update's active was the player who just played.
+  if (room.started && room.discard && room.discard.length > 0) {
+    const newTop = room.discard[room.discard.length - 1];
+    const newKey = `${newTop.color}:${newTop.value}`;
+    const isOpponentPlay =
+      newKey !== lastTopCardKey &&
+      !isPlayingCard &&
+      lastTurnPlayerId &&
+      lastTurnPlayerId !== socket.id;
+
+    if (isOpponentPlay) {
+      animateOpponentPlayFlight(lastTurnPlayerId, newTop);
+    }
+  }
+
+  // Record who is active on THIS update so the next update knows who played.
+  if (room.started && room.players && room.players[room.turn]) {
+    lastTurnPlayerId = room.players[room.turn].id;
+  } else {
+    lastTurnPlayerId = "";
+  }
+
   currentRoom = room;
   roomCode = room.roomCode;
   setScreen("game");
@@ -1505,6 +1834,7 @@ socket.on("invalidMove", (message) => {
     pendingCardElement.style.visibility = "";
     pendingCardElement = null;
   }
+  pendingCardRect = null;
   handElement.querySelectorAll(".card").forEach((el) => {
     el.style.visibility = "";
   });
@@ -1522,6 +1852,7 @@ socket.on("leftRoom", () => {
   myCards = [];
   pendingCard = null;
   pendingCardElement = null;
+  pendingCardRect = null;
   isPlayingCard = false;
   colorPicker.style.display = "none";
   deckDecisionModal.style.display = "none";
@@ -1554,6 +1885,9 @@ socket.on("gameOver", (winnerName) => {
   clearInterval(timerInterval);
   stopSound("timerTick");
   pendingCard = null;
+  pendingCardElement = null;
+  pendingCardRect = null;
+  isPlayingCard = false;
   colorPicker.style.display = "none";
   deckDecisionModal.style.display = "none";
   playSound("win");
@@ -1730,6 +2064,20 @@ const tutorialSteps = [
       <p class="tut-caption">Same color (blue) or same value (5) is playable.</p>`
   },
   {
+    title: "Tap the deck to draw",
+    body: "No playable card? <b>Tap the deck</b> in the center of the table to draw. The drawn card auto-plays if it's playable; otherwise it stays in your hand and the turn passes.",
+    art: `
+      <div class="tut-row tut-deck-demo">
+        <div class="tut-deck">
+          <div class="tut-deck-card"></div>
+          <div class="tut-deck-card"></div>
+          <div class="tut-deck-card tut-deck-top">?</div>
+        </div>
+        <div class="tut-arrow">↑</div>
+      </div>
+      <p class="tut-caption">Tap to draw — no Draw button needed.</p>`
+  },
+  {
     title: "Power cards",
     body: `
       <ul class="tut-list">
@@ -1818,15 +2166,279 @@ function tutorialPrev() {
   renderTutorialStep();
 }
 
-// Auto-show on first visit
-try {
-  if (!localStorage.getItem(TUTORIAL_KEY)) {
-    openTutorial();
-  }
-} catch {}
+// (Tutorial auto-opens on first gameStarted instead of on page load — see below)
 
 window.addEventListener("resize", () => {
   if (currentRoom?.started) {
     renderPlayers(currentRoom);
+  }
+});
+
+/* ============================================================
+   Landing v2 — routing, settings, leaderboard, name prompt
+   ============================================================ */
+
+const LANDING_EL    = document.getElementById("menu");
+const FRIENDS_EL    = document.getElementById("friendsMenu");
+const SETTINGS_EL   = document.getElementById("settingsModal");
+const LEADERBD_EL   = document.getElementById("leaderboardModal");
+const NAME_PROMPT   = document.getElementById("namePromptModal");
+
+let pendingFlow = null; // "friends" | "bots" — set when name prompt opens
+
+/* ---------- Sync hidden #name with profile / friendsName input ---------- */
+function syncNameField() {
+  const hidden = document.getElementById("name");
+  if (!hidden) return;
+  const fromFriends = document.getElementById("friendsName")?.value?.trim();
+  if (fromFriends) {
+    hidden.value = fromFriends;
+    return;
+  }
+  if (userProfile && userProfile.name) hidden.value = userProfile.name;
+}
+
+/* Pre-fill friendsName from saved profile */
+window.addEventListener("DOMContentLoaded", () => {
+  const friendsInput = document.getElementById("friendsName");
+  if (friendsInput && userProfile && userProfile.name) {
+    friendsInput.value = userProfile.name;
+  }
+  syncNameField();
+  updateSettingsSwitches();
+});
+
+/* ---------- Routing ---------- */
+function goToLanding() {
+  if (FRIENDS_EL) FRIENDS_EL.style.display = "none";
+  if (LANDING_EL) LANDING_EL.style.display = "";
+}
+
+function goToFriends() {
+  unlockAudio();
+  if (LANDING_EL) LANDING_EL.style.display = "none";
+  if (FRIENDS_EL) FRIENDS_EL.style.display = "";
+  // Pre-fill name from profile
+  const friendsInput = document.getElementById("friendsName");
+  if (friendsInput && !friendsInput.value && userProfile?.name) {
+    friendsInput.value = userProfile.name;
+  }
+  syncNameField();
+}
+
+function goToBots() {
+  unlockAudio();
+  // If no name set, prompt first
+  const haveName = (userProfile && userProfile.name) ||
+                   document.getElementById("name")?.value?.trim();
+  if (!haveName) {
+    pendingFlow = "bots";
+    openNamePrompt();
+    return;
+  }
+  syncNameField();
+  openBotDifficulty();
+}
+
+function createRoomFromFriends() {
+  syncNameField();
+  const name = document.getElementById("friendsName")?.value?.trim();
+  if (!name) {
+    pendingFlow = "create";
+    openNamePrompt();
+    return;
+  }
+  // Hidden #name is now in sync; reuse existing logic
+  createRoom();
+}
+
+function joinRoomFromFriends() {
+  syncNameField();
+  const name = document.getElementById("friendsName")?.value?.trim();
+  if (!name) {
+    pendingFlow = "join";
+    openNamePrompt();
+    return;
+  }
+  joinRoom();
+}
+
+/* ---------- Name prompt (first-time) ---------- */
+function openNamePrompt() {
+  if (!NAME_PROMPT) return;
+  NAME_PROMPT.style.display = "flex";
+  const input = document.getElementById("namePromptInput");
+  if (input) {
+    input.value = userProfile?.name || "";
+    setTimeout(() => input.focus(), 50);
+  }
+}
+
+function closeNamePrompt() {
+  if (NAME_PROMPT) NAME_PROMPT.style.display = "none";
+}
+
+function submitNamePrompt() {
+  const input = document.getElementById("namePromptInput");
+  const value = (input?.value || "").trim();
+  if (!value) {
+    input?.focus();
+    return;
+  }
+  // Sync into hidden #name + friendsName + persist via existing profile flow
+  const hidden = document.getElementById("name");
+  if (hidden) hidden.value = value;
+  const friends = document.getElementById("friendsName");
+  if (friends) friends.value = value;
+  // Persist locally so future visits skip the prompt
+  if (userProfile) {
+    userProfile.name = value;
+    writeProfile(userProfile);
+  } else {
+    writeProfile({ name: value });
+  }
+  // Inform server too if connected
+  try { socket.emit("updateProfile", { name: value }); } catch {}
+
+  closeNamePrompt();
+
+  // Continue the flow the user picked
+  const flow = pendingFlow;
+  pendingFlow = null;
+  if (flow === "bots")   { openBotDifficulty(); return; }
+  if (flow === "create") { createRoom();        return; }
+  if (flow === "join")   { joinRoom();          return; }
+}
+
+/* ---------- Settings panel ---------- */
+function openSettings() {
+  unlockAudio();
+  if (!SETTINGS_EL) return;
+  SETTINGS_EL.style.display = "flex";
+  // Show "Leave Room" only when actually in a room
+  const leaveBtn = document.getElementById("leaveRoomSetting");
+  if (leaveBtn) {
+    leaveBtn.style.display = currentRoom ? "" : "none";
+  }
+  updateSettingsSwitches();
+}
+
+function closeSettings() {
+  if (SETTINGS_EL) SETTINGS_EL.style.display = "none";
+}
+
+function updateSettingsSwitches() {
+  const sfx = document.getElementById("sfxToggle");
+  if (sfx) {
+    const on = !isMuted;
+    sfx.classList.toggle("is-on", on);
+    sfx.setAttribute("aria-checked", String(on));
+  }
+  const music = document.getElementById("musicToggle");
+  if (music) {
+    const on = !isMusicMuted;
+    music.classList.toggle("is-on", on);
+    music.setAttribute("aria-checked", String(on));
+  }
+}
+
+function toggleSfx() {
+  // Reuse existing toggleMute (which handles SFX + linked BGM logic).
+  toggleMute();
+  updateSettingsSwitches();
+}
+
+function toggleMusicV2() {
+  // Reuse existing toggleMusic (handles unlock + persistence).
+  toggleMusic();
+  updateSettingsSwitches();
+}
+
+/* ---------- Leaderboard placeholder ---------- */
+function openLeaderboard() {
+  unlockAudio();
+  if (LEADERBD_EL) LEADERBD_EL.style.display = "flex";
+}
+
+function closeLeaderboard() {
+  if (LEADERBD_EL) LEADERBD_EL.style.display = "none";
+}
+
+/* ---------- Auto-tutorial on first gameStarted ---------- */
+const FIRST_GAME_KEY = "lcb-tutorial-shown-v1";
+socket.on("gameStarted", () => {
+  try {
+    if (!localStorage.getItem(FIRST_GAME_KEY) && !localStorage.getItem(TUTORIAL_KEY)) {
+      // Slight delay so the deal animation can settle first
+      setTimeout(() => {
+        openTutorial();
+        localStorage.setItem(FIRST_GAME_KEY, "1");
+      }, 600);
+    }
+  } catch {}
+});
+
+/* Keyboard: Enter inside name prompt submits */
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && NAME_PROMPT && NAME_PROMPT.style.display === "flex") {
+    e.preventDefault();
+    submitNamePrompt();
+  }
+});
+
+/* ---------- Android hardware back button (Capacitor) ----------
+   Step-by-step back: close any open modal first, otherwise navigate
+   one screen back. Exits app only when on the landing page. */
+function handleHardwareBack() {
+  const isVisible = (el) => {
+    if (!el) return false;
+    // Use computed style — inline style.display="" is treated as visible.
+    return getComputedStyle(el).display !== "none";
+  };
+
+  // 1. Close top-most modal/overlay if open
+  const overlays = [
+    { el: document.getElementById("settingsModal"),     close: () => closeSettings()    },
+    { el: document.getElementById("tutorialModal"),     close: () => closeTutorial()    },
+    { el: document.getElementById("botDifficultyModal"),close: () => closeBotDifficulty()},
+    { el: document.getElementById("leaderboardModal"),  close: () => closeLeaderboard() },
+    { el: document.getElementById("colorPicker"),       close: () => {
+        document.getElementById("colorPicker").style.display = "none";
+        // Reset pending wild-card state so the card returns to hand cleanly.
+        if (pendingCardElement && document.body.contains(pendingCardElement)) {
+          pendingCardElement.style.visibility = "";
+        }
+        pendingCard = null;
+        pendingCardElement = null;
+        pendingCardRect = null;
+      } },
+    { el: document.getElementById("winnerModal"),       close: () => { document.getElementById("winnerModal").style.display = "none"; } },
+    { el: document.getElementById("namePromptModal"),   close: () => { /* keep — required */ } },
+    { el: document.getElementById("challengeModal"),    close: () => { document.getElementById("challengeModal").style.display = "none"; } },
+    { el: document.getElementById("deckDecisionModal"), close: () => { document.getElementById("deckDecisionModal").style.display = "none"; } },
+  ];
+  for (const o of overlays) {
+    if (isVisible(o.el)) { o.close(); return true; }
+  }
+
+  // 2. Screen-level back navigation
+  const screen = document.body.dataset.screen;
+  const friends = document.getElementById("friendsMenu");
+  if (isVisible(friends)) { goToLanding(); return true; }
+  if (screen === "lobby" || screen === "game") {
+    if (confirm("Leave the current room?")) leaveRoom();
+    return true;
+  }
+  // 3. On the landing page → let OS handle (exit app)
+  return false;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const Cap = window.Capacitor;
+  if (Cap && Cap.Plugins && Cap.Plugins.App) {
+    Cap.Plugins.App.addListener("backButton", () => {
+      const handled = handleHardwareBack();
+      if (!handled) Cap.Plugins.App.exitApp();
+    });
   }
 });
