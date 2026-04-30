@@ -2,15 +2,9 @@ services:
   - type: web
     name: last-card-battle
     runtime: node
-    plan: starter            # persistent disks require a paid plan (starter is cheapest)
+    plan: free
     buildCommand: npm install
     startCommand: npm start
     envVars:
-      - key: DATA_DIR
-        value: /var/data
       - key: NODE_ENV
         value: production
-    disk:
-      name: lcb-data
-      mountPath: /var/data
-      sizeGB: 1
