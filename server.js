@@ -191,7 +191,11 @@ function reshuffleDeck(room) {
   }
 
   const topCard = room.discard.pop();
-  room.deck = shuffle([...room.discard]);
+  // Reset wilds back to black so they retain their wild nature when redrawn.
+  const recycled = room.discard.map((c) =>
+    (c.value === "wild" || c.value === "+4") ? { ...c, color: "black" } : c
+  );
+  room.deck = shuffle(recycled);
   room.discard = topCard ? [topCard] : [];
 }
 
@@ -371,21 +375,34 @@ function getLeadingPlayer(room) {
   }, null);
 }
 
-function chooseBotColor(cards) {
-  const colorCounts = {
-    red: 0,
-    green: 0,
-    blue: 0,
-    yellow: 0
-  };
-
+function chooseBotColor(cards, difficulty) {
+  const COLORS = ["red", "green", "blue", "yellow"];
+  // Easy: pick a color at random — feels less tactical.
+  if (difficulty === "easy") {
+    return COLORS[Math.floor(Math.random() * COLORS.length)];
+  }
+  const colorCounts = { red: 0, green: 0, blue: 0, yellow: 0 };
   cards.forEach((card) => {
     if (colorCounts[card.color] !== undefined) {
       colorCounts[card.color] += 1;
     }
   });
+  const sorted = Object.entries(colorCounts).sort((a, b) => b[1] - a[1]);
+  if (sorted[0][1] === 0) return COLORS[Math.floor(Math.random() * COLORS.length)];
+  return sorted[0][0];
+}
 
-  return Object.entries(colorCounts).sort((a, b) => b[1] - a[1])[0][0];
+// Easy bots forget to call UNO ~50% of the time; normal/hard always call.
+function shouldBotCallUno(difficulty) {
+  if (difficulty === "easy") return Math.random() < 0.5;
+  return true;
+}
+
+// Random think time per difficulty for personality.
+function botThinkMs(difficulty) {
+  if (difficulty === "easy")  return 900  + Math.floor(Math.random() * 900);
+  if (difficulty === "hard")  return 700  + Math.floor(Math.random() * 500);
+  return 1000 + Math.floor(Math.random() * 500);
 }
 
 function pickBotCard(player, topCard, stackCount, room) {
@@ -525,12 +542,27 @@ function applyCardPlay(roomCode, player, playedCard, priorContext) {
   player.cardsPlayed = (player.cardsPlayed || 0) + 1;
 
   if (player.cards.length === 1 && !player.calledUNO) {
-    player.calledUNO = true;
-    io.to(roomCode).emit("unoCalled", { playerName: player.name });
+    // Humans must press the button; bots auto-call based on difficulty (easy may forget).
+    if (!player.isBot || shouldBotCallUno(player.difficulty)) {
+      player.calledUNO = true;
+      io.to(roomCode).emit("unoCalled", { playerName: player.name });
+    } else if (player.isBot) {
+      // Bot forgot — penalize after 3s if still at 1 card and still hasn't called.
+      setTimeout(() => {
+        const activeRoom = rooms[roomCode];
+        if (!activeRoom || !activeRoom.started) return;
+        const active = activeRoom.players.find((p) => p.id === player.id);
+        if (active && active.cards.length === 1 && !active.calledUNO) {
+          drawCards(activeRoom, active, 2);
+          io.to(roomCode).emit("penalty", { playerName: active.name });
+          emitGameState(roomCode);
+        }
+      }, 3000);
+    }
   }
 
   if (playedCard.color === "black") {
-    playedCard.color = chooseBotColor(player.cards);
+    playedCard.color = chooseBotColor(player.cards, player.difficulty);
   }
 
   room.discard.push(playedCard);
@@ -636,7 +668,7 @@ function queueBotTurnIfNeeded(roomCode) {
   stopBotTurn(room);
   room.botTurnTimer = setTimeout(() => {
     runBotTurn(roomCode);
-  }, 1200);
+  }, botThinkMs(activePlayer.difficulty));
 }
 
 function requestDeckDecision(roomCode, decisionState = {}) {
