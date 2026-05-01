@@ -1504,23 +1504,27 @@ function buildTimerRing() {
 }
 
 // Opponent seats around the table, in PLAY ORDER starting with the player who
-// plays right after me. Positions are percentages of the viewport and deliberately
-// avoid the top-center deck zone (yPct 8-24, xPct 35-65).
+// plays right after me. Arrangement is ANTI-CLOCKWISE: opp[0] sits on my right,
+// next up the right, over the top corners, and ends on my left. Deck zone
+// (yPct 8-24, xPct 35-65) is kept clear.
 const OPPONENT_SEATS = {
-  1: [{ xPct: 85, yPct: 30 }],
-  2: [{ xPct: 88, yPct: 30 }, { xPct: 12, yPct: 30 }],
-  3: [{ xPct: 88, yPct: 30 }, { xPct: 12, yPct: 30 }, { xPct: 12, yPct: 55 }],
+  1: [{ xPct: 88, yPct: 40 }],
+  2: [{ xPct: 88, yPct: 40 }, { xPct: 12, yPct: 40 }],
+  3: [{ xPct: 88, yPct: 55 }, { xPct: 88, yPct: 28 }, { xPct: 12, yPct: 28 }],
   4: [
-    { xPct: 88, yPct: 30 }, { xPct: 12, yPct: 30 },
-    { xPct: 88, yPct: 55 }, { xPct: 12, yPct: 55 }
+    { xPct: 88, yPct: 55 }, { xPct: 88, yPct: 28 },
+    { xPct: 12, yPct: 28 }, { xPct: 12, yPct: 55 }
   ],
   5: [
-    { xPct: 88, yPct: 28 }, { xPct: 12, yPct: 28 },
-    { xPct: 92, yPct: 50 }, { xPct: 8, yPct: 50 },
-    { xPct: 50, yPct: 60 }
+    { xPct: 92, yPct: 58 }, { xPct: 88, yPct: 28 },
+    { xPct: 50, yPct: 20 }, { xPct: 12, yPct: 28 },
+    { xPct: 8, yPct: 58 }
   ]
 };
-const ME_SEAT = { xPct: 8, yPct: 88 };
+// "Me" sits bottom-center, above the hand strip, so everyone feels seated
+// around a round table together.
+const ME_SEAT = { xPct: 50 };
+const ME_OFFSET_FROM_BOTTOM_PX = 180;
 
 function renderPlayers(room) {
   playersElement.innerHTML = "";
@@ -1551,10 +1555,9 @@ function renderPlayers(room) {
     let x, y;
 
     if (isMe) {
-      const minX = 70;
-      x = Math.max(minX, (ME_SEAT.xPct / 100) * W);
+      x = (ME_SEAT.xPct / 100) * W;
       const stableH = (window.visualViewport ? window.visualViewport.height : H);
-      y = stableH - 110;
+      y = stableH - ME_OFFSET_FROM_BOTTOM_PX;
     } else {
       const seatIdx = opponentsOrdered.findIndex((p) => p.id === player.id);
       const seat = seats[seatIdx] || { xPct: 50, yPct: 32 };
