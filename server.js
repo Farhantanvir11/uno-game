@@ -890,6 +890,16 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("requestLeaderboard", async ({ limit } = {}) => {
+    try {
+      const rows = await dbApi.getLeaderboard(limit);
+      socket.emit("leaderboard", { rows, myUserId: socket.data?.userId || null });
+    } catch (err) {
+      console.error("[leaderboard] failed:", err);
+      socket.emit("leaderboard", { rows: [], myUserId: null, error: "server_error" });
+    }
+  });
+
   socket.on("createRoom", (playerName) => {
     const roomCode = generateRoomCode();
     const player = createPlayer(socket, playerName);

@@ -2429,15 +2429,52 @@ function toggleMusicV2() {
   updateSettingsSwitches();
 }
 
-/* ---------- Leaderboard placeholder ---------- */
+/* ---------- Leaderboard ---------- */
 function openLeaderboard() {
   unlockAudio();
-  if (LEADERBD_EL) LEADERBD_EL.style.display = "flex";
+  if (!LEADERBD_EL) return;
+  LEADERBD_EL.style.display = "flex";
+
+  const list = document.getElementById("leaderboardList");
+  if (list) list.innerHTML = '<div class="lb-empty">Loading leaderboard…</div>';
+
+  try { socket.emit("requestLeaderboard", { limit: 20 }); } catch {}
 }
 
 function closeLeaderboard() {
   if (LEADERBD_EL) LEADERBD_EL.style.display = "none";
 }
+
+function _escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+
+socket.on("leaderboard", ({ rows, myUserId, error } = {}) => {
+  const list = document.getElementById("leaderboardList");
+  if (!list) return;
+  if (error) {
+    list.innerHTML = '<div class="lb-empty">Couldn\'t load leaderboard. Try again later.</div>';
+    return;
+  }
+  if (!Array.isArray(rows) || rows.length === 0) {
+    list.innerHTML = '<div class="lb-empty">No games played yet. Be the first to win!</div>';
+    return;
+  }
+  const html = rows.map((r) => {
+    const isMe = myUserId && r.userId === myUserId;
+    const medal = r.rank === 1 ? "🥇" : r.rank === 2 ? "🥈" : r.rank === 3 ? "🥉" : `#${r.rank}`;
+    return `
+      <div class="lb-row${isMe ? " is-me" : ""}">
+        <span class="lb-col-rank">${medal}</span>
+        <span class="lb-col-name">${_escapeHtml(r.name)}${isMe ? ' <em class="lb-you">you</em>' : ""}</span>
+        <span class="lb-col-wins">${r.wins}</span>
+        <span class="lb-col-streak">${r.bestStreak}</span>
+      </div>`;
+  }).join("");
+  list.innerHTML = html;
+});
 
 /* ---------- Auto-tutorial on first gameStarted ---------- */
 const FIRST_GAME_KEY = "lcb-tutorial-shown-v1";

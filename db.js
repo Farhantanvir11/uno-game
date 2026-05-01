@@ -209,9 +209,39 @@ async function recordGameResult(outcomes) {
   if (stmts.length > 0) await db.batch(stmts, "write");
 }
 
+async function getLeaderboard(limit = 20) {
+  await ready();
+  const n = Math.max(1, Math.min(100, Number(limit) || 20));
+  const res = await db.execute({
+    sql: `SELECT u.id AS id, u.name AS name, u.avatar AS avatar,
+                 s.wins AS wins, s.losses AS losses,
+                 s.games_played AS games_played,
+                 s.best_streak AS best_streak,
+                 s.current_streak AS current_streak
+            FROM user_stats s
+            JOIN users u ON u.id = s.user_id
+           WHERE s.games_played > 0
+           ORDER BY s.wins DESC, s.best_streak DESC, s.games_played ASC
+           LIMIT ?`,
+    args: [n]
+  });
+  return res.rows.map((r, i) => ({
+    rank: i + 1,
+    userId: Number(r.id),
+    name: r.name,
+    avatar: r.avatar,
+    wins: Number(r.wins),
+    losses: Number(r.losses),
+    gamesPlayed: Number(r.games_played),
+    bestStreak: Number(r.best_streak),
+    currentStreak: Number(r.current_streak)
+  }));
+}
+
 module.exports = {
   ready,
   loginDevice,
+  getLeaderboard,
   getUser,
   getStats,
   updateProfile,
