@@ -356,7 +356,7 @@ function finishGame(roomCode, winnerName) {
         won: p.name === winnerName,
         cardsPlayed: p.cardsPlayed || 0
       }));
-    if (outcomes.length > 0) dbApi.recordGameResult(outcomes);
+    if (outcomes.length > 0) dbApi.recordGameResult(outcomes).catch((err) => console.error("[stats] recordGameResult:", err));
   } catch (err) {
     console.error("[stats] failed to record game result:", err);
   }
@@ -825,20 +825,20 @@ function removePlayerFromRoom(socketId) {
 io.on("connection", (socket) => {
   // ----- Anonymous device login -----
   // Establishes a stable userId for this socket; required for stats persistence.
-  socket.on("loginDevice", ({ deviceId, name } = {}) => {
+  socket.on("loginDevice", async ({ deviceId, name } = {}) => {
     if (!dbApi.isValidDeviceId(deviceId)) {
       socket.emit("loginError", "invalid_device_id");
       return;
     }
     try {
-      const { user, stats, created } = dbApi.loginDevice(deviceId, name);
+      const { user, stats, created } = await dbApi.loginDevice(deviceId, name);
       // If the client supplied a name and this is an existing account whose name
       // doesn't match, update it (lets users change their name from the menu).
       let final = user;
       if (!created && typeof name === "string") {
         const cleaned = dbApi.sanitizeName(name, user.name);
         if (cleaned !== user.name) {
-          final = dbApi.updateProfile(user.id, { name: cleaned }) || user;
+          final = (await dbApi.updateProfile(user.id, { name: cleaned })) || user;
         }
       }
       socket.data.userId = final.id;
@@ -854,13 +854,13 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("updateProfile", ({ name, avatar } = {}) => {
+  socket.on("updateProfile", async ({ name, avatar } = {}) => {
     const userId = socket.data && socket.data.userId;
     if (!userId) {
       socket.emit("loginError", "not_logged_in");
       return;
     }
-    const user = dbApi.updateProfile(userId, { name, avatar });
+    const user = await dbApi.updateProfile(userId, { name, avatar });
     if (!user) {
       socket.emit("loginError", "user_not_found");
       return;
@@ -879,10 +879,15 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("requestStats", () => {
+  socket.on("requestStats", async () => {
     const userId = socket.data && socket.data.userId;
     if (!userId) return;
-    socket.emit("stats", dbApi.getStats(userId));
+    try {
+      const stats = await dbApi.getStats(userId);
+      socket.emit("stats", stats);
+    } catch (err) {
+      console.error("[stats] requestStats:", err);
+    }
   });
 
   socket.on("createRoom", (playerName) => {

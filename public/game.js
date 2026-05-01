@@ -181,6 +181,75 @@ socket.on("sessionResumed", ({ roomCode: code }) => {
   showToast("Reconnected", 1200);
 });
 
+/* ---------- Haptics (native Android/iOS via Capacitor; browser fallback) ---------- */
+const _CapHaptics = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics;
+const HapticsImpact = { light: "LIGHT", medium: "MEDIUM", heavy: "HEAVY" };
+const HapticsNotif  = { success: "SUCCESS", warning: "WARNING", error: "ERROR" };
+
+function haptic(kind = "light") {
+  // Respect the master mute — users who mute sound usually don't want vibration either.
+  if (isMuted) return;
+  try {
+    if (_CapHaptics) {
+      if (kind === "success" || kind === "warning" || kind === "error") {
+        _CapHaptics.notification({ type: HapticsNotif[kind] });
+      } else if (kind === "selection") {
+        _CapHaptics.selectionStart();
+        setTimeout(() => _CapHaptics.selectionEnd(), 40);
+      } else {
+        _CapHaptics.impact({ style: HapticsImpact[kind] || HapticsImpact.light });
+      }
+      return;
+    }
+  } catch { /* plugin not available — fall through */ }
+  if (navigator.vibrate) {
+    const ms = kind === "heavy" ? 35 : kind === "medium" ? 20 : kind === "success" ? [0, 30, 60, 30] : kind === "warning" ? [0, 40, 80, 40] : 12;
+    try { navigator.vibrate(ms); } catch {}
+  }
+}
+
+/* ---------- Connection-status overlay (cold-start + reconnect) ---------- */
+const _connOverlay = document.getElementById("connOverlay");
+const _connTitle   = document.getElementById("connTitle");
+const _connSub     = document.getElementById("connSub");
+let _hasEverConnected = false;
+let _connShowTimer   = null;
+
+function showConnOverlay({ reconnect = false } = {}) {
+  if (!_connOverlay) return;
+  _connOverlay.classList.toggle("is-reconnect", reconnect);
+  if (reconnect) {
+    _connTitle.textContent = "Reconnecting…";
+    _connSub.textContent   = "You went offline. Trying to rejoin the game.";
+  } else {
+    _connTitle.textContent = "Connecting to game server…";
+    _connSub.textContent   = "First connection can take up to 30 seconds on free hosting. Hang tight!";
+  }
+  _connOverlay.style.display = "flex";
+}
+function hideConnOverlay() {
+  if (!_connOverlay) return;
+  _connOverlay.style.display = "none";
+}
+
+// On cold start, show the overlay only if the socket hasn't connected within 1.2s
+// (avoids a flash on fast networks). Skipped entirely when bot-mode transport is active.
+_connShowTimer = setTimeout(() => {
+  if (!_hasEverConnected && _transportMode !== "local") showConnOverlay();
+}, 1200);
+
+_realSocket.on("connect", () => {
+  _hasEverConnected = true;
+  if (_connShowTimer) { clearTimeout(_connShowTimer); _connShowTimer = null; }
+  hideConnOverlay();
+});
+_realSocket.on("disconnect", (reason) => {
+  // Don't show overlay on intentional client-side disconnects (e.g. leaving).
+  if (reason === "io client disconnect") return;
+  showConnOverlay({ reconnect: true });
+});
+_realSocket.on("reconnect", () => hideConnOverlay());
+
 // On (re)connect, login by device id, then try to resume any stored session.
 socket.on("connect", () => {
   const deviceId = ensureDeviceId();
@@ -678,6 +747,7 @@ function callUNO() {
   socket.emit("uno", roomCode);
   unoButton.style.display = "none";
   playSound("unoCall");
+  haptic("heavy");
 }
 
 function chooseColor(color) {
@@ -688,6 +758,7 @@ function chooseColor(color) {
   }
 
   playSound("cardPlay");
+  haptic("light");
   isPlayingCard = true;
 
   const card = pendingCard;
@@ -911,6 +982,7 @@ function playCard(card, sourceEl) {
   }
 
   playSound("cardPlay");
+  haptic("light");
   isPlayingCard = true;
 
   // Capture rect NOW — local-game fires yourCards synchronously which wipes
@@ -1819,6 +1891,7 @@ socket.on("updateGame", (room) => {
 
 socket.on("penalty", () => {
   playSound("penalty");
+  haptic("medium");
   showToast("Penalty applied");
 });
 
@@ -1828,6 +1901,7 @@ socket.on("deckEmpty", () => {
 
 socket.on("invalidMove", (message) => {
   playSound("invalidMove");
+  haptic("warning");
   showToast(message || "Invalid move", 1200);
   // Restore any card hidden by the optimistic play-flight animation
   if (pendingCardElement) {
@@ -1891,6 +1965,7 @@ socket.on("gameOver", (winnerName) => {
   colorPicker.style.display = "none";
   deckDecisionModal.style.display = "none";
   playSound("win");
+  haptic("success");
   winnerNameElement.innerText = winnerName;
   winnerModal.style.display = "flex";
   resetRematchButton();

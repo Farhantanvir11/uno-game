@@ -1,171 +1,216 @@
-// Lightweight SQLite persistence for users + stats.
-// Designed to be process-local; for multi-instance deployments swap in a managed DB later.
+/* ============================================================
+   db.js — persistence layer (libsql / Turso)
+   ============================================================
+   - In production on Render: uses Turso via TURSO_DATABASE_URL +
+     TURSO_AUTH_TOKEN environment variables (free forever tier).
+   - Locally: falls back to an on-disk SQLite file under ./data/
+     so developer flow is unchanged.
+   All exported functions are async. The server awaits them.
+   ============================================================ */
 
-const path = require("path");
-const fs = require("fs");
-const crypto = require("crypto");
-const Database = require("better-sqlite3");
+"use strict";
 
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+const path   = require("node:path");
+const fs     = require("node:fs");
+const { createClient } = require("@libsql/client");
+
+const DEFAULT_AVATAR = "default";
+const MAX_NAME_LEN   = 24;
+const MIN_NAME_LEN   = 2;
+const VALID_AVATARS  = new Set([
+  "default", "fox", "panda", "tiger", "lion", "robot", "wizard", "ninja"
+]);
+
+function buildClient() {
+  const url   = process.env.TURSO_DATABASE_URL;
+  const token = process.env.TURSO_AUTH_TOKEN;
+  if (url) {
+    return createClient({ url, authToken: token });
+  }
+  // Local dev fallback: on-disk SQLite file.
+  const dir = process.env.DATA_DIR || path.join(__dirname, "data");
+  try { fs.mkdirSync(dir, { recursive: true }); } catch {}
+  const file = path.join(dir, "lcb.sqlite");
+  return createClient({ url: `file:${file}` });
 }
 
-const DB_PATH = path.join(DATA_DIR, "lcb.sqlite");
-const db = new Database(DB_PATH);
-db.pragma("journal_mode = WAL");
-db.pragma("foreign_keys = ON");
+const db = buildClient();
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id          TEXT PRIMARY KEY,
-    device_id   TEXT NOT NULL UNIQUE,
-    name        TEXT NOT NULL,
-    avatar      TEXT,
-    created_at  INTEGER NOT NULL,
-    updated_at  INTEGER NOT NULL
-  );
+async function init() {
+  await db.batch([
+    `CREATE TABLE IF NOT EXISTS users (
+       id          INTEGER PRIMARY KEY AUTOINCREMENT,
+       device_id   TEXT UNIQUE NOT NULL,
+       name        TEXT NOT NULL,
+       avatar      TEXT NOT NULL DEFAULT 'default',
+       created_at  INTEGER NOT NULL
+     )`,
+    `CREATE TABLE IF NOT EXISTS user_stats (
+       user_id         INTEGER PRIMARY KEY,
+       wins            INTEGER NOT NULL DEFAULT 0,
+       losses          INTEGER NOT NULL DEFAULT 0,
+       games_played    INTEGER NOT NULL DEFAULT 0,
+       cards_played    INTEGER NOT NULL DEFAULT 0,
+       current_streak  INTEGER NOT NULL DEFAULT 0,
+       best_streak     INTEGER NOT NULL DEFAULT 0,
+       last_result_at  INTEGER,
+       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+     )`
+  ], "write");
+}
 
-  CREATE TABLE IF NOT EXISTS stats (
-    user_id        TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    games_played   INTEGER NOT NULL DEFAULT 0,
-    games_won      INTEGER NOT NULL DEFAULT 0,
-    games_lost     INTEGER NOT NULL DEFAULT 0,
-    cards_played   INTEGER NOT NULL DEFAULT 0,
-    win_streak     INTEGER NOT NULL DEFAULT 0,
-    best_streak    INTEGER NOT NULL DEFAULT 0,
-    last_played_at INTEGER
-  );
+// Kick off schema creation immediately; server awaits ready().
+const readyPromise = init().catch((err) => {
+  console.error("[db] init failed:", err);
+  throw err;
+});
+function ready() { return readyPromise; }
 
-  CREATE INDEX IF NOT EXISTS idx_users_device_id ON users(device_id);
-`);
+/* ---------- helpers ---------- */
 
-// --- Validation helpers ---
-const NAME_MAX_LEN = 20;
 function sanitizeName(raw, fallback = "Player") {
-  if (typeof raw !== "string") return fallback;
-  const s = raw.trim().slice(0, NAME_MAX_LEN);
-  return s.length === 0 ? fallback : s;
+  const cleaned = String(raw || "").trim().replace(/\s+/g, " ").slice(0, MAX_NAME_LEN);
+  if (cleaned.length < MIN_NAME_LEN) return fallback;
+  return cleaned;
+}
+
+function sanitizeAvatar(raw) {
+  const v = String(raw || "").trim();
+  return VALID_AVATARS.has(v) ? v : DEFAULT_AVATAR;
 }
 
 function isValidDeviceId(id) {
-  return typeof id === "string" && /^[a-zA-Z0-9_-]{8,64}$/.test(id);
+  return typeof id === "string" && /^[a-zA-Z0-9_-]{6,128}$/.test(id);
 }
 
-// --- Prepared statements ---
-const stmtFindUserByDevice = db.prepare(`SELECT * FROM users WHERE device_id = ?`);
-const stmtFindUserById     = db.prepare(`SELECT * FROM users WHERE id = ?`);
-const stmtInsertUser       = db.prepare(`
-  INSERT INTO users (id, device_id, name, avatar, created_at, updated_at)
-  VALUES (@id, @device_id, @name, @avatar, @created_at, @updated_at)
-`);
-const stmtInsertStats      = db.prepare(`INSERT INTO stats (user_id) VALUES (?)`);
-const stmtUpdateProfile    = db.prepare(`
-  UPDATE users SET name = @name, avatar = @avatar, updated_at = @updated_at WHERE id = @id
-`);
-const stmtFindStats        = db.prepare(`SELECT * FROM stats WHERE user_id = ?`);
-const stmtBumpWin = db.prepare(`
-  UPDATE stats SET
-    games_played = games_played + 1,
-    games_won    = games_won + 1,
-    cards_played = cards_played + @cards_played,
-    win_streak   = win_streak + 1,
-    best_streak  = MAX(best_streak, win_streak + 1),
-    last_played_at = @now
-  WHERE user_id = @user_id
-`);
-const stmtBumpLoss = db.prepare(`
-  UPDATE stats SET
-    games_played = games_played + 1,
-    games_lost   = games_lost + 1,
-    cards_played = cards_played + @cards_played,
-    win_streak   = 0,
-    last_played_at = @now
-  WHERE user_id = @user_id
-`);
+function rowToUser(r) {
+  if (!r) return null;
+  return {
+    id: Number(r.id),
+    deviceId: r.device_id,
+    name: r.name,
+    avatar: r.avatar,
+    createdAt: Number(r.created_at)
+  };
+}
 
-// --- Public API ---
+function rowToStats(r) {
+  if (!r) return {
+    wins: 0, losses: 0, gamesPlayed: 0, cardsPlayed: 0,
+    currentStreak: 0, bestStreak: 0, lastResultAt: null
+  };
+  return {
+    wins: Number(r.wins),
+    losses: Number(r.losses),
+    gamesPlayed: Number(r.games_played),
+    cardsPlayed: Number(r.cards_played),
+    currentStreak: Number(r.current_streak),
+    bestStreak: Number(r.best_streak),
+    lastResultAt: r.last_result_at != null ? Number(r.last_result_at) : null
+  };
+}
 
-/**
- * Create a user for a device id, or return the existing one.
- * Always returns { user, stats }.
- */
-function loginDevice(deviceId, requestedName) {
+async function firstRow(sql, args) {
+  const res = await db.execute({ sql, args });
+  return res.rows[0] || null;
+}
+
+/* ---------- public API ---------- */
+
+async function getUser(userId) {
+  const row = await firstRow("SELECT * FROM users WHERE id = ?", [userId]);
+  return rowToUser(row);
+}
+
+async function getStats(userId) {
+  const row = await firstRow("SELECT * FROM user_stats WHERE user_id = ?", [userId]);
+  return rowToStats(row);
+}
+
+async function loginDevice(deviceId, suggestedName) {
   if (!isValidDeviceId(deviceId)) {
     throw new Error("invalid_device_id");
   }
-  const existing = stmtFindUserByDevice.get(deviceId);
+  await ready();
+
+  const existing = await firstRow("SELECT * FROM users WHERE device_id = ?", [deviceId]);
   if (existing) {
-    return { user: existing, stats: stmtFindStats.get(existing.id), created: false };
+    const user  = rowToUser(existing);
+    const stats = await getStats(user.id);
+    return { user, stats, created: false };
   }
 
+  const name = sanitizeName(suggestedName, `Player${Math.floor(Math.random() * 9000) + 1000}`);
   const now = Date.now();
-  const id = crypto.randomUUID();
-  const user = {
-    id,
-    device_id: deviceId,
-    name: sanitizeName(requestedName),
-    avatar: null,
-    created_at: now,
-    updated_at: now
-  };
-
-  const tx = db.transaction(() => {
-    stmtInsertUser.run(user);
-    stmtInsertStats.run(id);
+  const ins = await db.execute({
+    sql: "INSERT INTO users (device_id, name, avatar, created_at) VALUES (?, ?, ?, ?)",
+    args: [deviceId, name, DEFAULT_AVATAR, now]
   });
-  tx();
-
-  return { user, stats: stmtFindStats.get(id), created: true };
+  const id = Number(ins.lastInsertRowid);
+  await db.execute({
+    sql: "INSERT INTO user_stats (user_id) VALUES (?)",
+    args: [id]
+  });
+  const user  = { id, deviceId, name, avatar: DEFAULT_AVATAR, createdAt: now };
+  const stats = rowToStats(null);
+  return { user, stats, created: true };
 }
 
-function getUser(userId) {
-  return stmtFindUserById.get(userId) || null;
+async function updateProfile(userId, { name, avatar } = {}) {
+  const current = await getUser(userId);
+  if (!current) return null;
+
+  const nextName   = name   != null ? sanitizeName(name, current.name) : current.name;
+  const nextAvatar = avatar != null ? sanitizeAvatar(avatar)           : current.avatar;
+
+  if (nextName === current.name && nextAvatar === current.avatar) return current;
+
+  await db.execute({
+    sql: "UPDATE users SET name = ?, avatar = ? WHERE id = ?",
+    args: [nextName, nextAvatar, userId]
+  });
+  return { ...current, name: nextName, avatar: nextAvatar };
 }
 
-function getStats(userId) {
-  return stmtFindStats.get(userId) || null;
-}
-
-function updateProfile(userId, { name, avatar } = {}) {
-  const user = stmtFindUserById.get(userId);
-  if (!user) return null;
-
-  const next = {
-    id: userId,
-    name: typeof name === "string" ? sanitizeName(name, user.name) : user.name,
-    avatar: typeof avatar === "string" ? avatar.slice(0, 64) : user.avatar,
-    updated_at: Date.now()
-  };
-  stmtUpdateProfile.run(next);
-  return stmtFindUserById.get(userId);
-}
-
-/**
- * Record the result of a finished game.
- * `outcomes` is an array of { userId, won: boolean, cardsPlayed: number }.
- * Bots / unauthenticated players should be omitted by the caller.
- */
-function recordGameResult(outcomes) {
+async function recordGameResult(outcomes) {
   if (!Array.isArray(outcomes) || outcomes.length === 0) return;
+  await ready();
+
   const now = Date.now();
-  const tx = db.transaction(() => {
-    outcomes.forEach((o) => {
-      if (!o || typeof o.userId !== "string") return;
-      // Make sure a stats row exists for this user (defensive).
-      const exists = stmtFindStats.get(o.userId);
-      if (!exists) {
-        try { stmtInsertStats.run(o.userId); } catch { /* user row missing — skip */ return; }
-      }
-      const cards = Math.max(0, Math.min(200, Number(o.cardsPlayed) || 0));
-      const stmt = o.won ? stmtBumpWin : stmtBumpLoss;
-      stmt.run({ user_id: o.userId, cards_played: cards, now });
-    });
-  });
-  tx();
+  const stmts = [];
+  for (const o of outcomes) {
+    if (!o || !o.userId) continue;
+    const cards = Math.max(0, Math.min(200, Number(o.cardsPlayed) || 0));
+    if (o.won) {
+      stmts.push({
+        sql: `UPDATE user_stats
+                 SET wins           = wins + 1,
+                     games_played   = games_played + 1,
+                     cards_played   = cards_played + ?,
+                     current_streak = current_streak + 1,
+                     best_streak    = MAX(best_streak, current_streak + 1),
+                     last_result_at = ?
+               WHERE user_id = ?`,
+        args: [cards, now, o.userId]
+      });
+    } else {
+      stmts.push({
+        sql: `UPDATE user_stats
+                 SET losses         = losses + 1,
+                     games_played   = games_played + 1,
+                     cards_played   = cards_played + ?,
+                     current_streak = 0,
+                     last_result_at = ?
+               WHERE user_id = ?`,
+        args: [cards, now, o.userId]
+      });
+    }
+  }
+  if (stmts.length > 0) await db.batch(stmts, "write");
 }
 
 module.exports = {
+  ready,
   loginDevice,
   getUser,
   getStats,
