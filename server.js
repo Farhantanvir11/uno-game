@@ -832,6 +832,7 @@ io.on("connection", (socket) => {
     }
     try {
       const { user, stats, created } = await dbApi.loginDevice(deviceId, name);
+      console.log(`[auth] user ${user.id} (${user.name}) logged in (created=${created})`);
       // If the client supplied a name and this is an existing account whose name
       // doesn't match, update it (lets users change their name from the menu).
       let final = user;
