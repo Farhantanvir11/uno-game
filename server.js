@@ -823,15 +823,20 @@ function removePlayerFromRoom(socketId) {
 }
 
 io.on("connection", (socket) => {
+  console.log("[diag] socket connected:", socket.id, "ua:", (socket.handshake.headers["user-agent"] || "").slice(0, 80));
+
   // ----- Anonymous device login -----
   // Establishes a stable userId for this socket; required for stats persistence.
   socket.on("loginDevice", async ({ deviceId, name } = {}) => {
+    console.log("[diag] loginDevice received: deviceId=", deviceId, "name=", name);
     if (!dbApi.isValidDeviceId(deviceId)) {
+      console.log("[diag] loginDevice rejected: invalid_device_id");
       socket.emit("loginError", "invalid_device_id");
       return;
     }
     try {
       const { user, stats, created } = await dbApi.loginDevice(deviceId, name);
+      console.log("[diag] loginDevice ok: id=", user.id, "created=", created, "name=", user.name);
       // If the client supplied a name and this is an existing account whose name
       // doesn't match, update it (lets users change their name from the menu).
       let final = user;
