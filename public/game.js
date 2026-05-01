@@ -14,6 +14,12 @@ function _busDispatch(event, ...args) {
 }
 // Forward every real-socket event into the bus.
 _realSocket.onAny((event, ...args) => _busDispatch(event, ...args));
+// onAny() skips Socket.IO lifecycle events (connect/disconnect/connect_error/reconnect).
+// Forward them explicitly so bus listeners (login, reconnect UI) see them.
+_realSocket.on("connect",       (...a) => _busDispatch("connect", ...a));
+_realSocket.on("disconnect",    (...a) => _busDispatch("disconnect", ...a));
+_realSocket.on("connect_error", (...a) => _busDispatch("connect_error", ...a));
+_realSocket.on("reconnect",     (...a) => _busDispatch("reconnect", ...a));
 
 // Local-game instance is created lazily on first bot match.
 let _localGame = null;
