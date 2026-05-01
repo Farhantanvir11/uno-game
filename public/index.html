@@ -187,12 +187,17 @@
         <h3 class="settings-title">Leaderboard</h3>
         <p class="settings-sub">Compete with players worldwide</p>
       </div>
-      <div class="leaderboard-coming">
-        <div class="lb-icon">🚀</div>
-        <h4>Coming Soon</h4>
-        <p>Sign in with Google to track your win-rate, streaks, and strategy score across devices.</p>
-        <button class="cta-secondary" type="button" disabled>Sign in with Google</button>
-        <p class="lb-hint">Available in the next update.</p>
+      <div class="leaderboard-body">
+        <div class="lb-header-row">
+          <span class="lb-col-rank">#</span>
+          <span class="lb-col-name">Player</span>
+          <span class="lb-col-wins">Wins</span>
+          <span class="lb-col-streak">Best</span>
+        </div>
+        <div id="leaderboardList" class="lb-list">
+          <div class="lb-empty">Loading leaderboard…</div>
+        </div>
+        <p class="lb-hint" id="leaderboardHint">Top 20 players by total wins. Tie-break: best streak.</p>
       </div>
     </div>
   </div>
