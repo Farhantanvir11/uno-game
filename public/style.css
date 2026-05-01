@@ -4075,3 +4075,49 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
   .hero-stage { margin-top: 40px; }
   .hero-image { max-height: 68vh; }
 }
+
+/* ========== Connection overlay (cold-start + reconnect) ========== */
+.conn-overlay {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(11,16,32,.92) 0%, rgba(11,16,32,.98) 100%);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: connFadeIn 180ms ease;
+}
+@keyframes connFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.conn-card {
+  max-width: 360px;
+  text-align: center;
+  color: #f1f5ff;
+  font-family: "Fredoka", "Nunito", system-ui, sans-serif;
+}
+.conn-spinner {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 22px;
+  border-radius: 50%;
+  border: 4px solid rgba(255,213,79,0.15);
+  border-top-color: #ffd54f;
+  animation: connSpin 0.9s linear infinite;
+}
+@keyframes connSpin { to { transform: rotate(360deg); } }
+.conn-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-bottom: 8px;
+}
+.conn-sub {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: rgba(241,245,255,0.7);
+  line-height: 1.5;
+}
+.conn-overlay.is-reconnect .conn-title { color: #ffb74d; }

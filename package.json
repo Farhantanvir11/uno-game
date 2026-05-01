@@ -14,7 +14,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "better-sqlite3": "^12.9.0",
+    "@capacitor/haptics": "^6.0.3",
+    "@libsql/client": "^0.17.3",
     "express": "^5.1.0",
     "socket.io": "^4.8.1"
   },

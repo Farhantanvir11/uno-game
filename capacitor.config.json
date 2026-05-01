@@ -3,7 +3,7 @@
   "appName": "Last Card Battle",
   "webDir": "public",
   "server": {
-    "url": "https://last-card-battle.fly.dev",
+    "url": "https://last-card-battle.onrender.com",
     "cleartext": false,
     "androidScheme": "https"
   },

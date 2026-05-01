@@ -10,6 +10,15 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- Connection status overlay (shown on cold-start + reconnect) -->
+  <div id="connOverlay" class="conn-overlay" aria-live="polite" style="display:none;">
+    <div class="conn-card">
+      <div class="conn-spinner" aria-hidden="true"></div>
+      <div class="conn-title" id="connTitle">Connecting to game server…</div>
+      <div class="conn-sub" id="connSub">First connection can take up to 30 seconds on free hosting. Hang tight!</div>
+    </div>
+  </div>
+
   <!-- Launch intro animation -->
   <div id="introOverlay" class="intro-overlay" aria-hidden="true">
     <div class="intro-stage">
