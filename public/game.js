@@ -1508,15 +1508,16 @@ function buildTimerRing() {
 // avoid the top-center deck zone (yPct 8-24, xPct 35-65).
 const OPPONENT_SEATS = {
   1: [{ xPct: 85, yPct: 30 }],
-  2: [{ xPct: 88, yPct: 80 }, { xPct: 15, yPct: 32 }],
-  3: [{ xPct: 92, yPct: 78 }, { xPct: 92, yPct: 34 }, { xPct: 12, yPct: 34 }],
+  2: [{ xPct: 88, yPct: 30 }, { xPct: 12, yPct: 30 }],
+  3: [{ xPct: 88, yPct: 30 }, { xPct: 12, yPct: 30 }, { xPct: 12, yPct: 55 }],
   4: [
-    { xPct: 92, yPct: 78 }, { xPct: 92, yPct: 38 },
-    { xPct: 50, yPct: 32 }, { xPct: 12, yPct: 38 }
+    { xPct: 88, yPct: 30 }, { xPct: 12, yPct: 30 },
+    { xPct: 88, yPct: 55 }, { xPct: 12, yPct: 55 }
   ],
   5: [
-    { xPct: 92, yPct: 78 }, { xPct: 92, yPct: 50 },
-    { xPct: 78, yPct: 28 }, { xPct: 22, yPct: 28 }, { xPct: 12, yPct: 50 }
+    { xPct: 88, yPct: 28 }, { xPct: 12, yPct: 28 },
+    { xPct: 92, yPct: 50 }, { xPct: 8, yPct: 50 },
+    { xPct: 50, yPct: 60 }
   ]
 };
 const ME_SEAT = { xPct: 8, yPct: 88 };
