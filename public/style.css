@@ -252,10 +252,11 @@ body:not([data-screen="game"]) #hand,
 body:not([data-screen="game"]) #toast,
 body:not([data-screen="game"]) #colorPicker,
 body:not([data-screen="game"]) #deckDecisionModal,
-body:not([data-screen="game"]) #powerEffect,
-body:not([data-screen="game"]) #winnerModal {
+body:not([data-screen="game"]) #powerEffect {
   display: none !important;
 }
+/* NOTE: #winnerModal intentionally stays visible after screen switches to lobby,
+   so everyone sees the "Champion Crowned" screen until they tap Back To Lobby. */
 
 /* -------- Lobby (waiting room) -------- */
 .lobby-screen {
@@ -1091,6 +1092,31 @@ body:not([data-screen="game"]) #winnerModal {
 
 .player.active .player-avatar {
   animation: activePulse 1.4s ease-in-out infinite;
+}
+
+/* Next-up indicator: subtle teal halo + small "Next" pill above the avatar */
+.player.is-next .player-avatar {
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 255, 255, 0.22),
+    0 0 0 3px rgba(76, 217, 255, 0.55),
+    0 8px 22px rgba(0, 0, 0, 0.4);
+}
+.player-next-badge {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #4cd9ff;
+  color: #0b2030;
+  font-weight: 800;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 .player.active .player-name {
