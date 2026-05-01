@@ -1503,19 +1503,22 @@ function buildTimerRing() {
   );
 }
 
-// Seat positions as % of the viewport. Deck + discard live at the top-center,
-// so opponents in 2-player rooms sit just below/beside them, never centered.
+// Opponent seats around the table, in PLAY ORDER starting with the player who
+// plays right after me. Positions are percentages of the viewport and deliberately
+// avoid the top-center deck zone (yPct 8-24, xPct 35-65).
 const OPPONENT_SEATS = {
-  1: [{ xPct: 80, yPct: 26 }],
-  2: [{ xPct: 18, yPct: 26 }, { xPct: 82, yPct: 26 }],
-  3: [{ xPct: 14, yPct: 28 }, { xPct: 86, yPct: 28 }, { xPct: 86, yPct: 68 }],
+  1: [{ xPct: 85, yPct: 30 }],
+  2: [{ xPct: 88, yPct: 80 }, { xPct: 15, yPct: 32 }],
+  3: [{ xPct: 92, yPct: 78 }, { xPct: 92, yPct: 34 }, { xPct: 12, yPct: 34 }],
   4: [
-    { xPct: 12, yPct: 28 }, { xPct: 88, yPct: 28 },
-    { xPct: 16, yPct: 66 }, { xPct: 84, yPct: 66 }
+    { xPct: 92, yPct: 78 }, { xPct: 92, yPct: 38 },
+    { xPct: 50, yPct: 32 }, { xPct: 12, yPct: 38 }
+  ],
+  5: [
+    { xPct: 92, yPct: 78 }, { xPct: 92, yPct: 50 },
+    { xPct: 78, yPct: 28 }, { xPct: 22, yPct: 28 }, { xPct: 12, yPct: 50 }
   ]
 };
-// Anchor the player's own tile to the bottom-LEFT, beside the hand strip,
-// so it stays visible on every viewport regardless of how tall the hand gets.
 const ME_SEAT = { xPct: 8, yPct: 88 };
 
 function renderPlayers(room) {
@@ -1523,25 +1526,37 @@ function renderPlayers(room) {
   const W = window.innerWidth;
   const H = window.innerHeight;
 
-  const opponents = room.players.filter((p) => p.id !== socket.id);
-  const seats = OPPONENT_SEATS[opponents.length] || [];
+  // Arrange opponents in play order (next-to-play first), direction-aware.
+  const myIdx = room.players.findIndex((p) => p.id === socket.id);
+  const N = room.players.length;
+  const dir = room.direction === -1 ? -1 : 1;
+  const opponentsOrdered = [];
+  if (myIdx >= 0) {
+    for (let step = 1; step < N; step++) {
+      opponentsOrdered.push(room.players[(myIdx + step * dir + N * step) % N]);
+    }
+  } else {
+    // Spectator: fall back to raw order so we still render everyone.
+    room.players.forEach((p) => opponentsOrdered.push(p));
+  }
+  const seats = OPPONENT_SEATS[opponentsOrdered.length] || [];
+
+  // Compute the "next up" player — the one who plays after the current active one.
+  const nextTurnIdx = N > 0 ? ((room.turn + dir) % N + N) % N : -1;
+  const nextUpId = room.players[nextTurnIdx]?.id;
 
   room.players.forEach((player, index) => {
     const isMe = player.id === socket.id;
-    let x;
-    let y;
+    let x, y;
 
     if (isMe) {
-      // Side-anchored: hugs the bottom-left corner so cards never cover it.
-      // On narrow phones, push slightly inward so the tile isn't clipped.
-      const minX = 70;          // tile half-width (~70px)
+      const minX = 70;
       x = Math.max(minX, (ME_SEAT.xPct / 100) * W);
-      // Use visualViewport height when available — unaffected by URL-bar resize.
       const stableH = (window.visualViewport ? window.visualViewport.height : H);
       y = stableH - 110;
     } else {
-      const oppIdx = opponents.findIndex((p) => p.id === player.id);
-      const seat = seats[oppIdx] || { xPct: 50, yPct: 20 };
+      const seatIdx = opponentsOrdered.findIndex((p) => p.id === player.id);
+      const seat = seats[seatIdx] || { xPct: 50, yPct: 32 };
       x = (seat.xPct / 100) * W;
       y = (seat.yPct / 100) * H;
     }
@@ -1554,6 +1569,7 @@ function renderPlayers(room) {
     item.dataset.playerId = player.id;
 
     const isActive = index === room.turn && !room.awaitingDeckDecision;
+    const isNextUp = !isActive && player.id === nextUpId && !room.awaitingDeckDecision;
     const { url, color } = getAvatarFor(player);
 
     item.innerHTML = `
@@ -1563,9 +1579,11 @@ function renderPlayers(room) {
         <img class="avatar-face" src="${url}" alt="" />
         <span class="player-cards" title="cards in hand">${player.cardCount}</span>
       </div>
+      ${isNextUp ? '<div class="player-next-badge">Next</div>' : ""}
     `;
 
     if (isActive) item.classList.add("active");
+    if (isNextUp) item.classList.add("is-next");
     if (player.disconnected) item.classList.add("is-disconnected");
 
     playersElement.appendChild(item);
