@@ -2321,6 +2321,21 @@ function goToBots() {
   openBotDifficulty();
 }
 
+function persistTypedName(name) {
+  if (!name) return;
+  // Persist locally
+  if (userProfile) {
+    if (userProfile.name !== name) {
+      userProfile.name = name;
+      writeProfile(userProfile);
+    }
+  } else {
+    writeProfile({ name });
+  }
+  // Push to server so the leaderboard reflects the real name
+  try { socket.emit("updateProfile", { name }); } catch {}
+}
+
 function createRoomFromFriends() {
   syncNameField();
   const name = document.getElementById("friendsName")?.value?.trim();
@@ -2329,6 +2344,7 @@ function createRoomFromFriends() {
     openNamePrompt();
     return;
   }
+  persistTypedName(name);
   // Hidden #name is now in sync; reuse existing logic
   createRoom();
 }
@@ -2341,6 +2357,7 @@ function joinRoomFromFriends() {
     openNamePrompt();
     return;
   }
+  persistTypedName(name);
   joinRoom();
 }
 
