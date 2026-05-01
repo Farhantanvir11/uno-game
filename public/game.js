@@ -2470,6 +2470,7 @@ socket.on("leaderboard", ({ rows, myUserId, error } = {}) => {
         <span class="lb-col-rank">${medal}</span>
         <span class="lb-col-name">${_escapeHtml(r.name)}${isMe ? ' <em class="lb-you">you</em>' : ""}</span>
         <span class="lb-col-wins">${r.wins}</span>
+        <span class="lb-col-losses">${r.losses}</span>
         <span class="lb-col-streak">${r.bestStreak}</span>
       </div>`;
   }).join("");

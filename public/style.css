@@ -4127,11 +4127,16 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 .lb-header-row,
 .lb-row {
   display: grid;
-  grid-template-columns: 48px 1fr 58px 58px;
+  grid-template-columns: 44px 1fr 44px 44px 52px;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 10px 12px;
   font-family: "Fredoka", "Nunito", system-ui, sans-serif;
+}
+.lb-col-losses {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #ef9a9a;
 }
 .lb-header-row {
   font-size: 0.78rem;
