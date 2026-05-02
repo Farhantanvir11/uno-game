@@ -2585,17 +2585,29 @@ socket.on("leaderboard", ({ rows, myUserId, error } = {}) => {
   const html = rows.map((r) => {
     const isMe = myUserId && r.userId === myUserId;
     const medal = r.rank === 1 ? "🥇" : r.rank === 2 ? "🥈" : r.rank === 3 ? "🥉" : `#${r.rank}`;
+    const trophies = Number.isFinite(r.trophies)
+      ? r.trophies
+      : Math.max(0, (r.wins || 0) * 20 - (r.losses || 0) * 10);
+    const tier = trophyTier(trophies);
     return `
       <div class="lb-row${isMe ? " is-me" : ""}">
         <span class="lb-col-rank">${medal}</span>
         <span class="lb-col-name">${_escapeHtml(r.name)}${isMe ? ' <em class="lb-you">you</em>' : ""}</span>
-        <span class="lb-col-wins">${r.wins}</span>
-        <span class="lb-col-losses">${r.losses}</span>
-        <span class="lb-col-streak">${r.bestStreak}</span>
+        <span class="lb-col-trophies">🏆 ${trophies}</span>
+        <span class="lb-col-tier"><span class="tier-badge tier-${tier.key}">${tier.label}</span></span>
+        <span class="lb-col-streak">🔥 ${r.bestStreak}</span>
       </div>`;
   }).join("");
   list.innerHTML = html;
 });
+
+// Map trophy count to tier label/key. Thresholds tuned for early-game pacing.
+function trophyTier(t) {
+  if (t >= 500) return { key: "legend",   label: "Legend"   };
+  if (t >= 200) return { key: "champion", label: "Champion" };
+  if (t >= 60)  return { key: "pro",      label: "Pro"      };
+  return          { key: "rookie",   label: "Rookie"   };
+}
 
 /* ---------- Auto-tutorial on first gameStarted ---------- */
 const FIRST_GAME_KEY = "lcb-tutorial-shown-v1";

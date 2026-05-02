@@ -217,11 +217,12 @@ async function getLeaderboard(limit = 20) {
                  s.wins AS wins, s.losses AS losses,
                  s.games_played AS games_played,
                  s.best_streak AS best_streak,
-                 s.current_streak AS current_streak
+                 s.current_streak AS current_streak,
+                 MAX(0, s.wins * 20 - s.losses * 10) AS trophies
             FROM user_stats s
             JOIN users u ON u.id = s.user_id
            WHERE s.games_played > 0
-           ORDER BY s.wins DESC, s.best_streak DESC, s.games_played ASC
+           ORDER BY trophies DESC, s.best_streak DESC, s.games_played ASC
            LIMIT ?`,
     args: [n]
   });
@@ -234,7 +235,8 @@ async function getLeaderboard(limit = 20) {
     losses: Number(r.losses),
     gamesPlayed: Number(r.games_played),
     bestStreak: Number(r.best_streak),
-    currentStreak: Number(r.current_streak)
+    currentStreak: Number(r.current_streak),
+    trophies: Number(r.trophies)
   }));
 }
 

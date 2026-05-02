@@ -4305,17 +4305,35 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 .lb-header-row,
 .lb-row {
   display: grid;
-  grid-template-columns: 44px 1fr 44px 44px 52px;
+  grid-template-columns: 40px 1fr 64px 78px 56px;
   align-items: center;
   gap: 6px;
   padding: 10px 12px;
   font-family: "Fredoka", "Nunito", system-ui, sans-serif;
 }
-.lb-col-losses {
+.lb-col-trophies {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  color: #ef9a9a;
+  color: #ffd54f;
+  font-weight: 700;
 }
+.lb-col-tier {
+  text-align: center;
+}
+.tier-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+}
+.tier-badge.tier-rookie   { color: #b0bec5; background: rgba(176,190,197,0.10); }
+.tier-badge.tier-pro      { color: #4fc3f7; background: rgba(79,195,247,0.12); }
+.tier-badge.tier-champion { color: #ba68c8; background: rgba(186,104,200,0.14); }
+.tier-badge.tier-legend   { color: #ffd54f; background: rgba(255,213,79,0.16); box-shadow: 0 0 12px rgba(255,213,79,0.35); }
 .lb-header-row {
   font-size: 0.78rem;
   font-weight: 700;
@@ -4349,10 +4367,10 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.lb-col-wins, .lb-col-streak {
+.lb-col-streak {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  color: #ffd54f;
+  color: #ff8a65;
 }
 .lb-you {
   font-style: normal;
