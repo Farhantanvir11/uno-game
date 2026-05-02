@@ -257,10 +257,23 @@ _realSocket.on("disconnect", (reason) => {
 _realSocket.on("reconnect", () => hideConnOverlay());
 
 // On (re)connect, login by device id, then try to resume any stored session.
+function detectDeviceLabel() {
+  const ua = (navigator.userAgent || "").slice(0, 300);
+  // Pull phone model from "(Linux; Android 13; SM-G991B) ..." style UA strings.
+  const androidModel = ua.match(/Android[^;]*;\s*([^;)]+)\)/i);
+  if (androidModel) return `Android ${androidModel[1].trim()}`;
+  if (/iPhone/i.test(ua)) return "iPhone";
+  if (/iPad/i.test(ua)) return "iPad";
+  if (/Macintosh/i.test(ua)) return "Mac";
+  if (/Windows/i.test(ua)) return "Windows";
+  return "Web";
+}
+
 socket.on("connect", () => {
   const deviceId = ensureDeviceId();
   const cachedName = userProfile && userProfile.name;
-  socket.emit("loginDevice", { deviceId, name: cachedName });
+  const deviceLabel = detectDeviceLabel();
+  socket.emit("loginDevice", { deviceId, name: cachedName, deviceLabel });
 
   const session = readSession();
   if (session) {
