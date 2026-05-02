@@ -3122,11 +3122,13 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 
 .reaction-popover {
   display: flex;
-  gap: 4px;
-  padding: 6px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  max-width: calc(100vw - 24px);
   background: rgba(10, 22, 14, 0.92);
   border: 1px solid rgba(255, 213, 79, 0.28);
-  border-radius: 999px;
+  border-radius: 18px;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
   animation: popoverPop 280ms cubic-bezier(0.2, 1.4, 0.4, 1);
   transform-origin: bottom right;
@@ -3135,13 +3137,110 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 
 .reaction-popover[hidden] { display: none; }
 
+.reaction-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 2px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 999px;
+}
+.reaction-tab {
+  flex: 1;
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: "Fredoka", "Nunito", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 0.78rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+.reaction-tab.is-active {
+  background: #ffd54f;
+  color: #1b2a20;
+  box-shadow: 0 2px 6px rgba(255, 213, 79, 0.35);
+}
+
+.reaction-pane {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.reaction-pane[hidden] { display: none; }
+
+.reaction-pane.msg-pane {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  width: min(300px, 78vw);
+}
+.reaction-pane.msg-pane button {
+  width: auto;
+  height: auto;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  font-family: "Fredoka", "Nunito", system-ui, sans-serif;
+  font-weight: 600;
+  color: #f4f8f1;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 120ms ease, background 160ms ease;
+  animation: none;
+}
+.reaction-pane.msg-pane button:hover {
+  background: rgba(255, 213, 79, 0.18);
+  transform: translateY(-1px);
+}
+.reaction-pane.msg-pane button:active { transform: scale(0.96); }
+
+/* Floating speech bubble for preset messages */
+.quick-msg-bubble {
+  position: fixed;
+  z-index: 1310;
+  transform: translate(-50%, -120%);
+  padding: 8px 14px;
+  background: #fffaf0;
+  color: #1b2a20;
+  font-family: "Fredoka", "Nunito", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 0.88rem;
+  border-radius: 16px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  white-space: nowrap;
+  animation: quickMsgIn 2.4s ease-out forwards;
+}
+.quick-msg-bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  transform: translateX(-50%);
+  border: 7px solid transparent;
+  border-top-color: #fffaf0;
+  border-bottom: 0;
+}
+
+@keyframes quickMsgIn {
+  0%   { opacity: 0; transform: translate(-50%, -90%)  scale(0.7); }
+  12%  { opacity: 1; transform: translate(-50%, -130%) scale(1.05); }
+  20%  { opacity: 1; transform: translate(-50%, -120%) scale(1); }
+  85%  { opacity: 1; transform: translate(-50%, -120%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -145%) scale(0.95); }
+}
+
 @keyframes popoverPop {
   0%   { opacity: 0; transform: scale(0.4) translateY(8px); }
   60%  { opacity: 1; transform: scale(1.06) translateY(0); }
   100% { opacity: 1; transform: scale(1) translateY(0); }
 }
 
-.reaction-popover button {
+.reaction-pane:not(.msg-pane) button {
   width: 44px;
   height: 44px;
   padding: 0 0 2px;             /* nudge emoji glyph upward 2px to true-center */
@@ -3159,24 +3258,24 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 }
 
 /* Stagger entrance for each emoji */
-.reaction-popover button:nth-child(1) { animation-delay: 40ms;  }
-.reaction-popover button:nth-child(2) { animation-delay: 90ms;  }
-.reaction-popover button:nth-child(3) { animation-delay: 140ms; }
-.reaction-popover button:nth-child(4) { animation-delay: 190ms; }
-.reaction-popover button:nth-child(5) { animation-delay: 240ms; }
-.reaction-popover button:nth-child(6) { animation-delay: 290ms; }
+.reaction-pane:not(.msg-pane) button:nth-child(1) { animation-delay: 40ms;  }
+.reaction-pane:not(.msg-pane) button:nth-child(2) { animation-delay: 90ms;  }
+.reaction-pane:not(.msg-pane) button:nth-child(3) { animation-delay: 140ms; }
+.reaction-pane:not(.msg-pane) button:nth-child(4) { animation-delay: 190ms; }
+.reaction-pane:not(.msg-pane) button:nth-child(5) { animation-delay: 240ms; }
+.reaction-pane:not(.msg-pane) button:nth-child(6) { animation-delay: 290ms; }
 
 @keyframes emojiIn {
   0%   { opacity: 0; transform: translateY(10px) scale(0.4); }
   100% { opacity: 1; transform: translateY(0)    scale(1);   }
 }
 
-.reaction-popover button:hover {
+.reaction-pane:not(.msg-pane) button:hover {
   transform: scale(1.35) rotate(-6deg);
   background: rgba(255, 213, 79, 0.18);
 }
 
-.reaction-popover button:active {
+.reaction-pane:not(.msg-pane) button:active {
   transform: scale(0.92);
 }
 
@@ -3248,7 +3347,7 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 @media (max-width: 480px) {
   .reaction-dock { right: 10px; bottom: 10px; }
   .reaction-toggle { width: 42px; height: 42px; font-size: 1.25rem; }
-  .reaction-popover button { width: 44px; height: 44px; font-size: 1.25rem; }
+  .reaction-pane:not(.msg-pane) button { width: 44px; height: 44px; font-size: 1.25rem; }
 }
 
 /* -------- Full-screen confetti burst on win -------- */

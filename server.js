@@ -12,6 +12,7 @@ app.use(express.static("public"));
 
 const PORT = Number.parseInt(process.env.PORT, 10) || 3000;
 const TURN_DURATION_MS = 15000;
+const LAST_CARD_BONUS_MS = 60000; // Once per UNO call, the NEXT player gets 60s to plan a counter.
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 5;
 const DEFAULT_HAND_SIZE = 7;
@@ -150,6 +151,7 @@ function getSafeRoom(roomCode) {
     ),
     spectatorCount: room.spectators ? room.spectators.size : 0,
     turnEndsAt: room.turnEndsAt || null,
+    turnDuration: room.currentTurnDuration || TURN_DURATION_MS,
     awaitingDeckDecision: Boolean(room.deckDecision),
     canShuffleDeck: room.discard.length > 1
   };
@@ -262,7 +264,18 @@ function scheduleTurn(roomCode) {
 
   stopBotTurn(room);
   stopTurnTimer(room);
-  room.turnEndsAt = Date.now() + TURN_DURATION_MS;
+
+  // Bonus time applies to the first turn that isn't the player who just called UNO,
+  // so the threatened opponents get a real chance to plan and chat a counter.
+  const currentPlayer = room.players[room.turn];
+  let duration = TURN_DURATION_MS;
+  if (room.unoTurnBonus && currentPlayer && currentPlayer.id !== room.unoCallerId) {
+    duration = LAST_CARD_BONUS_MS;
+    room.unoTurnBonus = false;
+    room.unoCallerId = null;
+  }
+  room.currentTurnDuration = duration;
+  room.turnEndsAt = Date.now() + duration;
 
   room.timer = setTimeout(() => {
     const activeRoom = rooms[roomCode];
@@ -294,7 +307,7 @@ function scheduleTurn(roomCode) {
     advanceTurn(roomCode);
     scheduleTurn(roomCode);
     emitGameState(roomCode);
-  }, TURN_DURATION_MS);
+  }, duration);
 }
 
 function advanceToNextTurn(roomCode, extraSteps = 1) {
@@ -545,6 +558,8 @@ function applyCardPlay(roomCode, player, playedCard, priorContext) {
     // Humans must press the button; bots auto-call based on difficulty (easy may forget).
     if (!player.isBot || shouldBotCallUno(player.difficulty)) {
       player.calledUNO = true;
+      room.unoCallerId = player.id;
+      room.unoTurnBonus = true;
       io.to(roomCode).emit("unoCalled", { playerName: player.name });
     } else if (player.isBot) {
       // Bot forgot — penalize after 3s if still at 1 card and still hasn't called.
@@ -1098,6 +1113,8 @@ io.on("connection", (socket) => {
     const player = room.players.find((entry) => entry.id === socket.id);
     if (player && player.cards.length === 1) {
       player.calledUNO = true;
+      room.unoCallerId = player.id;
+      room.unoTurnBonus = true;
       io.to(roomCode).emit("unoCalled", { playerName: player.name });
     }
   });
@@ -1425,6 +1442,33 @@ io.on("connection", (socket) => {
 
   // Per-socket reaction rate limit: 1 reaction per 600ms.
   let lastReactionAt = 0;
+
+  // Whitelisted preset messages — clients send an index; server looks up text.
+  // Using an index (not free text) keeps the chat safe from abuse/flooding.
+  const QUICK_MESSAGES = [
+    "Stop them!",
+    "Play a +4!",
+    "Skip them!",
+    "Use your +2!",
+    "Change the color!",
+    "Nice call!",
+    "I'm gonna win!",
+    "No mercy!"
+  ];
+
+  socket.on("sendQuickMsg", (index) => {
+    const now = Date.now();
+    if (now - lastReactionAt < 600) return;
+    const i = Number(index);
+    if (!Number.isInteger(i) || i < 0 || i >= QUICK_MESSAGES.length) return;
+    lastReactionAt = now;
+    const roomCode = Array.from(socket.rooms).find(
+      (r) => r !== socket.id && rooms[r]
+    );
+    if (!roomCode) return;
+    io.to(roomCode).emit("quickMsg", { playerId: socket.id, text: QUICK_MESSAGES[i] });
+  });
+
   socket.on("sendReaction", (emoji) => {
     const now = Date.now();
     if (now - lastReactionAt < 600) return;
