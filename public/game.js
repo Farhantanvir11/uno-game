@@ -2041,32 +2041,45 @@ function switchReactionTab(tab) {
   });
 }
 
-const QUICK_MSG_TEXTS = [
-  "Stop them!", "Play a +4!", "Skip them!", "Use your +2!",
-  "Change the color!", "Nice call!", "I'm gonna win!", "No mercy!"
+// Mirror of the server's QUICK_MESSAGES payloads — kept in sync for instant local feedback.
+const QUICK_MSG_PAYLOADS = [
+  { text: "Play reverse!" },
+  { text: "Play red!",    color: "red" },
+  { text: "Play yellow!", color: "yellow" },
+  { text: "Play green!",  color: "green" },
+  { text: "Play blue!",   color: "blue" },
+  { text: "Nice call!" },
+  { text: "I'm gonna win!" },
+  { text: "No mercy!" }
 ];
 
 function sendQuickMsg(index) {
   socket.emit("sendQuickMsg", index);
   document.getElementById("reactionPopover").hidden = true;
   // Instant local feedback
-  spawnQuickMsgAt(QUICK_MSG_TEXTS[index] || "", getOwnAnchor());
+  const payload = QUICK_MSG_PAYLOADS[index] || { text: "" };
+  spawnQuickMsgAt(payload, getOwnAnchor());
 }
 
-function spawnQuickMsgAt(text, anchor) {
+function spawnQuickMsgAt({ text, color } = {}, anchor) {
   if (!text) return;
   const el = document.createElement("div");
-  el.className = "quick-msg-bubble";
-  el.textContent = text;
+  el.className = "quick-msg-bubble" + (color ? ` has-color color-${color}` : "");
+  if (color) {
+    const swatch = document.createElement("span");
+    swatch.className = `quick-msg-swatch swatch-${color}`;
+    el.appendChild(swatch);
+  }
+  el.appendChild(document.createTextNode(text));
   el.style.left = `${anchor.x}px`;
   el.style.top  = `${anchor.y}px`;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 2400);
 }
 
-socket.on("quickMsg", ({ playerId, text }) => {
+socket.on("quickMsg", ({ playerId, text, color }) => {
   if (playerId === socket.id) return; // already shown locally
-  spawnQuickMsgAt(text, getPlayerAnchor(playerId));
+  spawnQuickMsgAt({ text, color }, getPlayerAnchor(playerId));
 });
 
 function getOwnAnchor() {
