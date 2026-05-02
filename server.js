@@ -273,6 +273,9 @@ function scheduleTurn(roomCode) {
     duration = LAST_CARD_BONUS_MS;
     room.unoTurnBonus = false;
     room.unoCallerId = null;
+    console.log(`[BONUS] room=${roomCode} 60s bonus -> ${currentPlayer.name}`);
+  } else if (room.unoTurnBonus) {
+    console.log(`[BONUS] room=${roomCode} flag set but currentPlayer is caller, keeping flag`);
   }
   room.currentTurnDuration = duration;
   room.turnEndsAt = Date.now() + duration;
@@ -561,6 +564,7 @@ function applyCardPlay(roomCode, player, playedCard, priorContext) {
     // planning window regardless of whether UNO was formally called.
     room.unoCallerId = player.id;
     room.unoTurnBonus = true;
+    console.log(`[BONUS] room=${roomCode} ${player.name} now at 1 card -> next player gets 60s`);
   }
 
   if (player.cards.length === 1 && !player.calledUNO) {
@@ -1119,9 +1123,10 @@ io.on("connection", (socket) => {
 
     const player = room.players.find((entry) => entry.id === socket.id);
     if (player && player.cards.length === 1) {
+      // Manual UNO press only marks the call (avoids penalty). The 60s bonus
+      // for the next player was already armed by applyCardPlay when the card
+      // count dropped to 1; do NOT re-arm it here or it would fire a turn late.
       player.calledUNO = true;
-      room.unoCallerId = player.id;
-      room.unoTurnBonus = true;
       io.to(roomCode).emit("unoCalled", { playerName: player.name });
     }
   });
