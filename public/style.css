@@ -4334,6 +4334,20 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 .tier-badge.tier-pro      { color: #4fc3f7; background: rgba(79,195,247,0.12); }
 .tier-badge.tier-champion { color: #ba68c8; background: rgba(186,104,200,0.14); }
 .tier-badge.tier-legend   { color: #ffd54f; background: rgba(255,213,79,0.16); box-shadow: 0 0 12px rgba(255,213,79,0.35); }
+
+/* Phones: tighter columns so full name fits */
+@media (max-width: 560px) {
+  .lb-header-row,
+  .lb-row {
+    grid-template-columns: 32px 1fr 52px 64px 42px;
+    gap: 4px;
+    padding: 9px 8px;
+    font-size: 0.86rem;
+  }
+  .lb-col-rank { font-size: 0.95rem; }
+  .tier-badge { padding: 2px 6px; font-size: 0.6rem; letter-spacing: 0.02em; }
+  .lb-col-trophies { font-size: 0.82rem; }
+}
 .lb-header-row {
   font-size: 0.78rem;
   font-weight: 700;
