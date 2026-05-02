@@ -1606,7 +1606,7 @@ function updateActiveTimerRing() {
     activeAvatar.style.strokeDashoffset = "0";
     return;
   }
-  const total = 15000; // matches server TURN_DURATION_MS
+  const total = currentRoom?.turnDuration || 15000;
   const remaining = Math.max(0, endsAt - Date.now());
   const progress = Math.min(1, remaining / total);
   // pathLength=100 → full ring when progress=1, empty when 0
@@ -2029,6 +2029,45 @@ function sendReaction(emoji) {
   // Show locally too for instant feedback
   spawnReactionAt(emoji, getOwnAnchor());
 }
+
+function switchReactionTab(tab) {
+  const pop = document.getElementById("reactionPopover");
+  if (!pop) return;
+  pop.querySelectorAll(".reaction-tab").forEach((btn) => {
+    btn.classList.toggle("is-active", btn.dataset.tab === tab);
+  });
+  pop.querySelectorAll(".reaction-pane").forEach((pane) => {
+    pane.hidden = pane.dataset.pane !== tab;
+  });
+}
+
+const QUICK_MSG_TEXTS = [
+  "Stop them!", "Play a +4!", "Skip them!", "Use your +2!",
+  "Change the color!", "Nice call!", "I'm gonna win!", "No mercy!"
+];
+
+function sendQuickMsg(index) {
+  socket.emit("sendQuickMsg", index);
+  document.getElementById("reactionPopover").hidden = true;
+  // Instant local feedback
+  spawnQuickMsgAt(QUICK_MSG_TEXTS[index] || "", getOwnAnchor());
+}
+
+function spawnQuickMsgAt(text, anchor) {
+  if (!text) return;
+  const el = document.createElement("div");
+  el.className = "quick-msg-bubble";
+  el.textContent = text;
+  el.style.left = `${anchor.x}px`;
+  el.style.top  = `${anchor.y}px`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2400);
+}
+
+socket.on("quickMsg", ({ playerId, text }) => {
+  if (playerId === socket.id) return; // already shown locally
+  spawnQuickMsgAt(text, getPlayerAnchor(playerId));
+});
 
 function getOwnAnchor() {
   // Anchor below the hand for own reactions; near the player avatar for others.

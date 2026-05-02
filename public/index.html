@@ -463,12 +463,28 @@
     <span aria-hidden="true">😀</span>
   </button>
   <div id="reactionPopover" class="reaction-popover" hidden>
-    <button type="button" onclick="sendReaction('❤️')">❤️</button>
-    <button type="button" onclick="sendReaction('🔥')">🔥</button>
-    <button type="button" onclick="sendReaction('😂')">😂</button>
-    <button type="button" onclick="sendReaction('👍')">👍</button>
-    <button type="button" onclick="sendReaction('😱')">😱</button>
-    <button type="button" onclick="sendReaction('🤡')">🤡</button>
+    <div class="reaction-tabs" role="tablist">
+      <button type="button" class="reaction-tab is-active" data-tab="emoji" onclick="switchReactionTab('emoji')">Emoji</button>
+      <button type="button" class="reaction-tab" data-tab="msg" onclick="switchReactionTab('msg')">Chat</button>
+    </div>
+    <div class="reaction-pane" data-pane="emoji">
+      <button type="button" onclick="sendReaction('❤️')">❤️</button>
+      <button type="button" onclick="sendReaction('🔥')">🔥</button>
+      <button type="button" onclick="sendReaction('😂')">😂</button>
+      <button type="button" onclick="sendReaction('👍')">👍</button>
+      <button type="button" onclick="sendReaction('😱')">😱</button>
+      <button type="button" onclick="sendReaction('🤡')">🤡</button>
+    </div>
+    <div class="reaction-pane msg-pane" data-pane="msg" hidden>
+      <button type="button" onclick="sendQuickMsg(0)">Stop them!</button>
+      <button type="button" onclick="sendQuickMsg(1)">Play a +4!</button>
+      <button type="button" onclick="sendQuickMsg(2)">Skip them!</button>
+      <button type="button" onclick="sendQuickMsg(3)">Use your +2!</button>
+      <button type="button" onclick="sendQuickMsg(4)">Change the color!</button>
+      <button type="button" onclick="sendQuickMsg(5)">Nice call!</button>
+      <button type="button" onclick="sendQuickMsg(6)">I'm gonna win!</button>
+      <button type="button" onclick="sendQuickMsg(7)">No mercy!</button>
+    </div>
   </div>
 
   <div id="winnerModal" class="overlay winner-overlay" style="display:none;">
