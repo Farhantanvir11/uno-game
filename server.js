@@ -273,9 +273,6 @@ function scheduleTurn(roomCode) {
     duration = LAST_CARD_BONUS_MS;
     room.unoTurnBonus = false;
     room.unoCallerId = null;
-    console.log(`[BONUS] room=${roomCode} 60s bonus -> ${currentPlayer.name}`);
-  } else if (room.unoTurnBonus) {
-    console.log(`[BONUS] room=${roomCode} flag set but currentPlayer is caller, keeping flag`);
   }
   room.currentTurnDuration = duration;
   room.turnEndsAt = Date.now() + duration;
@@ -565,7 +562,6 @@ function applyCardPlay(roomCode, player, playedCard, priorContext) {
     // games since there's no one else to discuss strategy with.
     room.unoCallerId = player.id;
     room.unoTurnBonus = true;
-    console.log(`[BONUS] room=${roomCode} ${player.name} now at 1 card -> next player gets 60s`);
   }
 
   if (player.cards.length === 1 && !player.calledUNO) {
@@ -852,14 +848,16 @@ function removePlayerFromRoom(socketId) {
 io.on("connection", (socket) => {
   // ----- Anonymous device login -----
   // Establishes a stable userId for this socket; required for stats persistence.
-  socket.on("loginDevice", async ({ deviceId, name } = {}) => {
+  socket.on("loginDevice", async ({ deviceId, name, deviceLabel } = {}) => {
     if (!dbApi.isValidDeviceId(deviceId)) {
       socket.emit("loginError", "invalid_device_id");
       return;
     }
     try {
       const { user, stats, created } = await dbApi.loginDevice(deviceId, name);
-      console.log(`[auth] user ${user.id} (${user.name}) logged in (created=${created})`);
+      const devShort = String(deviceId).slice(0, 8);
+      const label = (typeof deviceLabel === "string" ? deviceLabel : "").slice(0, 60) || "unknown";
+      console.log(`[auth] user ${user.id} name="${user.name}" device=${devShort}… label="${label}" created=${created}`);
       // If the client supplied a name and this is an existing account whose name
       // doesn't match, update it (lets users change their name from the menu).
       let final = user;
