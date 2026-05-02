@@ -2058,7 +2058,9 @@ const QUICK_MSG_PAYLOADS = [
   { text: "Play reverse red!",   color: "red" },
   { text: "Play reverse yellow!",color: "yellow" },
   { text: "Play reverse green!", color: "green" },
-  { text: "Play reverse blue!",  color: "blue" }
+  { text: "Play reverse blue!",  color: "blue" },
+  { text: "No match!" },
+  { text: "Change number!" }
 ];
 
 function sendQuickMsg(index) {

@@ -556,12 +556,17 @@ function applyCardPlay(roomCode, player, playedCard, priorContext) {
 
   player.cardsPlayed = (player.cardsPlayed || 0) + 1;
 
+  if (player.cards.length === 1) {
+    // Whoever drops to 1 card is now the threat — give the next player a 60s
+    // planning window regardless of whether UNO was formally called.
+    room.unoCallerId = player.id;
+    room.unoTurnBonus = true;
+  }
+
   if (player.cards.length === 1 && !player.calledUNO) {
     // Humans must press the button; bots auto-call based on difficulty (easy may forget).
     if (!player.isBot || shouldBotCallUno(player.difficulty)) {
       player.calledUNO = true;
-      room.unoCallerId = player.id;
-      room.unoTurnBonus = true;
       io.to(roomCode).emit("unoCalled", { playerName: player.name });
     } else if (player.isBot) {
       // Bot forgot — penalize after 3s if still at 1 card and still hasn't called.
@@ -1464,7 +1469,9 @@ io.on("connection", (socket) => {
     { text: "Play reverse red!",    color: "red" },
     { text: "Play reverse yellow!", color: "yellow" },
     { text: "Play reverse green!",  color: "green" },
-    { text: "Play reverse blue!",   color: "blue" }
+    { text: "Play reverse blue!",   color: "blue" },
+    { text: "No match!" },
+    { text: "Change number!" }
   ];
 
   socket.on("sendQuickMsg", (index) => {
