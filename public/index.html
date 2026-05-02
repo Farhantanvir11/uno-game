@@ -476,19 +476,42 @@
       <button type="button" onclick="sendReaction('🤡')">🤡</button>
     </div>
     <div class="reaction-pane msg-pane" data-pane="msg" hidden>
-      <button type="button" onclick="sendQuickMsg(0)">Play reverse!</button>
-      <button type="button" class="msg-color-row" aria-label="Play a color">
+      <div class="msg-color-row" role="group" aria-label="Play a color">
         <span class="msg-color-label">Play color</span>
         <span class="msg-color-chips">
-          <span class="color-chip red"    onclick="event.stopPropagation(); sendQuickMsg(1)" title="Red"></span>
-          <span class="color-chip yellow" onclick="event.stopPropagation(); sendQuickMsg(2)" title="Yellow"></span>
-          <span class="color-chip green"  onclick="event.stopPropagation(); sendQuickMsg(3)" title="Green"></span>
-          <span class="color-chip blue"   onclick="event.stopPropagation(); sendQuickMsg(4)" title="Blue"></span>
+          <span class="color-chip red"    onclick="sendQuickMsg(0)" title="Red"></span>
+          <span class="color-chip yellow" onclick="sendQuickMsg(1)" title="Yellow"></span>
+          <span class="color-chip green"  onclick="sendQuickMsg(2)" title="Green"></span>
+          <span class="color-chip blue"   onclick="sendQuickMsg(3)" title="Blue"></span>
         </span>
-      </button>
-      <button type="button" onclick="sendQuickMsg(5)">Nice call!</button>
-      <button type="button" onclick="sendQuickMsg(6)">I'm gonna win!</button>
-      <button type="button" onclick="sendQuickMsg(7)">No mercy!</button>
+      </div>
+      <div class="msg-color-row" role="group" aria-label="Play +2">
+        <span class="msg-color-label">Play +2</span>
+        <span class="msg-color-chips">
+          <span class="color-chip red"    onclick="sendQuickMsg(4)" title="+2 Red"></span>
+          <span class="color-chip yellow" onclick="sendQuickMsg(5)" title="+2 Yellow"></span>
+          <span class="color-chip green"  onclick="sendQuickMsg(6)" title="+2 Green"></span>
+          <span class="color-chip blue"   onclick="sendQuickMsg(7)" title="+2 Blue"></span>
+        </span>
+      </div>
+      <div class="msg-color-row" role="group" aria-label="Play wild">
+        <span class="msg-color-label">Play wild</span>
+        <span class="msg-color-chips">
+          <span class="color-chip red"    onclick="sendQuickMsg(8)"  title="Wild Red"></span>
+          <span class="color-chip yellow" onclick="sendQuickMsg(9)"  title="Wild Yellow"></span>
+          <span class="color-chip green"  onclick="sendQuickMsg(10)" title="Wild Green"></span>
+          <span class="color-chip blue"   onclick="sendQuickMsg(11)" title="Wild Blue"></span>
+        </span>
+      </div>
+      <div class="msg-color-row" role="group" aria-label="Play reverse">
+        <span class="msg-color-label">Play reverse</span>
+        <span class="msg-color-chips">
+          <span class="color-chip red"    onclick="sendQuickMsg(12)" title="Reverse Red"></span>
+          <span class="color-chip yellow" onclick="sendQuickMsg(13)" title="Reverse Yellow"></span>
+          <span class="color-chip green"  onclick="sendQuickMsg(14)" title="Reverse Green"></span>
+          <span class="color-chip blue"   onclick="sendQuickMsg(15)" title="Reverse Blue"></span>
+        </span>
+      </div>
     </div>
   </div>
 
