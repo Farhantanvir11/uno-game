@@ -509,6 +509,8 @@ function startRoomGame(roomCode, handSize = DEFAULT_HAND_SIZE) {
   room.direction = 1;
   room.stackCount = 0;
   room.deckDecision = null;
+  room.unoCallerId = null;
+  room.unoTurnBonus = false;
   room.deck = createUnoDeck();
   room.discard = [];
 
@@ -1447,14 +1449,22 @@ io.on("connection", (socket) => {
   // Using an index (not free text) keeps the chat safe from abuse/flooding.
   // Entries with `color` render as a colored swatch bubble on the client.
   const QUICK_MESSAGES = [
-    { text: "Play reverse!" },
-    { text: "Play red!",    color: "red" },
-    { text: "Play yellow!", color: "yellow" },
-    { text: "Play green!",  color: "green" },
-    { text: "Play blue!",   color: "blue" },
-    { text: "Nice call!" },
-    { text: "I'm gonna win!" },
-    { text: "No mercy!" }
+    { text: "Play red!",         color: "red" },
+    { text: "Play yellow!",      color: "yellow" },
+    { text: "Play green!",       color: "green" },
+    { text: "Play blue!",        color: "blue" },
+    { text: "Play +2 red!",      color: "red" },
+    { text: "Play +2 yellow!",   color: "yellow" },
+    { text: "Play +2 green!",    color: "green" },
+    { text: "Play +2 blue!",     color: "blue" },
+    { text: "Play wild red!",    color: "red" },
+    { text: "Play wild yellow!", color: "yellow" },
+    { text: "Play wild green!",  color: "green" },
+    { text: "Play wild blue!",   color: "blue" },
+    { text: "Play reverse red!",    color: "red" },
+    { text: "Play reverse yellow!", color: "yellow" },
+    { text: "Play reverse green!",  color: "green" },
+    { text: "Play reverse blue!",   color: "blue" }
   ];
 
   socket.on("sendQuickMsg", (index) => {

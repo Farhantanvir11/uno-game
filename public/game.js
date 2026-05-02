@@ -1508,17 +1508,17 @@ function buildTimerRing() {
 // next up the right, over the top corners, and ends on my left. Deck zone
 // (yPct 8-24, xPct 35-65) is kept clear.
 const OPPONENT_SEATS = {
-  1: [{ xPct: 88, yPct: 40 }],
-  2: [{ xPct: 88, yPct: 40 }, { xPct: 12, yPct: 40 }],
-  3: [{ xPct: 88, yPct: 55 }, { xPct: 88, yPct: 28 }, { xPct: 12, yPct: 28 }],
+  1: [{ xPct: 82, yPct: 40 }],
+  2: [{ xPct: 82, yPct: 40 }, { xPct: 18, yPct: 40 }],
+  3: [{ xPct: 82, yPct: 55 }, { xPct: 82, yPct: 28 }, { xPct: 18, yPct: 28 }],
   4: [
-    { xPct: 88, yPct: 55 }, { xPct: 88, yPct: 28 },
-    { xPct: 12, yPct: 28 }, { xPct: 12, yPct: 55 }
+    { xPct: 82, yPct: 55 }, { xPct: 82, yPct: 28 },
+    { xPct: 18, yPct: 28 }, { xPct: 18, yPct: 55 }
   ],
   5: [
-    { xPct: 92, yPct: 58 }, { xPct: 88, yPct: 28 },
-    { xPct: 50, yPct: 20 }, { xPct: 12, yPct: 28 },
-    { xPct: 8, yPct: 58 }
+    { xPct: 84, yPct: 58 }, { xPct: 82, yPct: 28 },
+    { xPct: 50, yPct: 20 }, { xPct: 18, yPct: 28 },
+    { xPct: 16, yPct: 58 }
   ]
 };
 // "Me" sits bottom-center, above the hand strip, so everyone feels seated
@@ -2043,14 +2043,22 @@ function switchReactionTab(tab) {
 
 // Mirror of the server's QUICK_MESSAGES payloads — kept in sync for instant local feedback.
 const QUICK_MSG_PAYLOADS = [
-  { text: "Play reverse!" },
-  { text: "Play red!",    color: "red" },
-  { text: "Play yellow!", color: "yellow" },
-  { text: "Play green!",  color: "green" },
-  { text: "Play blue!",   color: "blue" },
-  { text: "Nice call!" },
-  { text: "I'm gonna win!" },
-  { text: "No mercy!" }
+  { text: "Play red!",        color: "red" },
+  { text: "Play yellow!",     color: "yellow" },
+  { text: "Play green!",      color: "green" },
+  { text: "Play blue!",       color: "blue" },
+  { text: "Play +2 red!",     color: "red" },
+  { text: "Play +2 yellow!",  color: "yellow" },
+  { text: "Play +2 green!",   color: "green" },
+  { text: "Play +2 blue!",    color: "blue" },
+  { text: "Play wild red!",   color: "red" },
+  { text: "Play wild yellow!",color: "yellow" },
+  { text: "Play wild green!", color: "green" },
+  { text: "Play wild blue!",  color: "blue" },
+  { text: "Play reverse red!",   color: "red" },
+  { text: "Play reverse yellow!",color: "yellow" },
+  { text: "Play reverse green!", color: "green" },
+  { text: "Play reverse blue!",  color: "blue" }
 ];
 
 function sendQuickMsg(index) {
