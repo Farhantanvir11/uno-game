@@ -3198,6 +3198,56 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 }
 .reaction-pane.msg-pane button:active { transform: scale(0.96); }
 
+/* Color-chip row inside the message pane */
+.reaction-pane.msg-pane .msg-color-row {
+  grid-column: span 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+}
+.msg-color-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+}
+.msg-color-chips {
+  display: inline-flex;
+  gap: 6px;
+}
+.color-chip {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-block;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: transform 140ms ease;
+}
+.color-chip:hover  { transform: scale(1.18); }
+.color-chip:active { transform: scale(0.9); }
+.color-chip.red    { background: #ef4444; }
+.color-chip.yellow { background: #facc15; }
+.color-chip.green  { background: #22c55e; }
+.color-chip.blue   { background: #3b82f6; }
+
+/* Swatch inside the speech bubble, replaces the word "blue/red/etc." visually */
+.quick-msg-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: -2px;
+  border: 2px solid #1b2a20;
+}
+.quick-msg-swatch.swatch-red    { background: #ef4444; }
+.quick-msg-swatch.swatch-yellow { background: #facc15; }
+.quick-msg-swatch.swatch-green  { background: #22c55e; }
+.quick-msg-swatch.swatch-blue   { background: #3b82f6; }
+
 /* Floating speech bubble for preset messages */
 .quick-msg-bubble {
   position: fixed;

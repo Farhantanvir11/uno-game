@@ -1443,17 +1443,18 @@ io.on("connection", (socket) => {
   // Per-socket reaction rate limit: 1 reaction per 600ms.
   let lastReactionAt = 0;
 
-  // Whitelisted preset messages — clients send an index; server looks up text.
+  // Whitelisted preset messages — clients send an index; server picks the payload.
   // Using an index (not free text) keeps the chat safe from abuse/flooding.
+  // Entries with `color` render as a colored swatch bubble on the client.
   const QUICK_MESSAGES = [
-    "Stop them!",
-    "Play a +4!",
-    "Skip them!",
-    "Use your +2!",
-    "Change the color!",
-    "Nice call!",
-    "I'm gonna win!",
-    "No mercy!"
+    { text: "Play reverse!" },
+    { text: "Play red!",    color: "red" },
+    { text: "Play yellow!", color: "yellow" },
+    { text: "Play green!",  color: "green" },
+    { text: "Play blue!",   color: "blue" },
+    { text: "Nice call!" },
+    { text: "I'm gonna win!" },
+    { text: "No mercy!" }
   ];
 
   socket.on("sendQuickMsg", (index) => {
@@ -1466,7 +1467,10 @@ io.on("connection", (socket) => {
       (r) => r !== socket.id && rooms[r]
     );
     if (!roomCode) return;
-    io.to(roomCode).emit("quickMsg", { playerId: socket.id, text: QUICK_MESSAGES[i] });
+    io.to(roomCode).emit("quickMsg", {
+      playerId: socket.id,
+      ...QUICK_MESSAGES[i]
+    });
   });
 
   socket.on("sendReaction", (emoji) => {

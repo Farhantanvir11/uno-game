@@ -476,11 +476,16 @@
       <button type="button" onclick="sendReaction('🤡')">🤡</button>
     </div>
     <div class="reaction-pane msg-pane" data-pane="msg" hidden>
-      <button type="button" onclick="sendQuickMsg(0)">Stop them!</button>
-      <button type="button" onclick="sendQuickMsg(1)">Play a +4!</button>
-      <button type="button" onclick="sendQuickMsg(2)">Skip them!</button>
-      <button type="button" onclick="sendQuickMsg(3)">Use your +2!</button>
-      <button type="button" onclick="sendQuickMsg(4)">Change the color!</button>
+      <button type="button" onclick="sendQuickMsg(0)">Play reverse!</button>
+      <button type="button" class="msg-color-row" aria-label="Play a color">
+        <span class="msg-color-label">Play color</span>
+        <span class="msg-color-chips">
+          <span class="color-chip red"    onclick="event.stopPropagation(); sendQuickMsg(1)" title="Red"></span>
+          <span class="color-chip yellow" onclick="event.stopPropagation(); sendQuickMsg(2)" title="Yellow"></span>
+          <span class="color-chip green"  onclick="event.stopPropagation(); sendQuickMsg(3)" title="Green"></span>
+          <span class="color-chip blue"   onclick="event.stopPropagation(); sendQuickMsg(4)" title="Blue"></span>
+        </span>
+      </button>
       <button type="button" onclick="sendQuickMsg(5)">Nice call!</button>
       <button type="button" onclick="sendQuickMsg(6)">I'm gonna win!</button>
       <button type="button" onclick="sendQuickMsg(7)">No mercy!</button>
