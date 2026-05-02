@@ -559,9 +559,10 @@ function applyCardPlay(roomCode, player, playedCard, priorContext) {
 
   player.cardsPlayed = (player.cardsPlayed || 0) + 1;
 
-  if (player.cards.length === 1) {
+  if (player.cards.length === 1 && room.players.length >= 3) {
     // Whoever drops to 1 card is now the threat — give the next player a 60s
-    // planning window regardless of whether UNO was formally called.
+    // planning window so opponents can coordinate a counter. Skipped in 2-player
+    // games since there's no one else to discuss strategy with.
     room.unoCallerId = player.id;
     room.unoTurnBonus = true;
     console.log(`[BONUS] room=${roomCode} ${player.name} now at 1 card -> next player gets 60s`);
