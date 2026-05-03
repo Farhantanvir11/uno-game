@@ -1330,7 +1330,10 @@ function renderHand(room) {
 
   unoButton.style.display = myCards.length === 1 ? "inline-block" : "none";
   if (drawButton) drawButton.disabled = !isMyTurn;
-  if (deckElement) deckElement.classList.toggle("is-drawable", isMyTurn);
+  if (deckElement) {
+    deckElement.classList.toggle("is-drawable", isMyTurn);
+    deckElement.classList.toggle("no-playable", isMyTurn && playableCards.length === 0);
+  }
 
   // Challenge +4: drive modal + reopen pill from server's canChallenge flag.
   syncChallengeUi(room, isMyTurn);
@@ -1928,6 +1931,14 @@ socket.on("updateGame", (room) => {
   roomCode = room.roomCode;
   setScreen("game");
   render(room);
+
+  const deckCountEl = document.getElementById("deckCount");
+  if (deckCountEl) {
+    const count = typeof room.deckCount === "number" ? room.deckCount : 0;
+    deckCountEl.textContent = count;
+    deckCountEl.classList.toggle("is-low", count > 0 && count <= 5);
+    deckCountEl.classList.toggle("is-empty", count === 0);
+  }
 });
 
 socket.on("penalty", () => {
