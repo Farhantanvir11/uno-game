@@ -1569,6 +1569,91 @@ body:not([data-screen="game"]) #powerEffect {
   transform: translate(3px, 3px) rotate(2deg);
 }
 
+.deck-count {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  min-width: 44px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.5px;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  font-variant-numeric: tabular-nums;
+}
+
+.deck-count.is-low {
+  background: rgba(220, 60, 60, 0.92);
+  animation: deckCountPulse 1.2s ease-in-out infinite;
+}
+
+.deck-count.is-empty {
+  background: rgba(80, 80, 80, 0.85);
+  color: #ddd;
+}
+
+@keyframes deckCountPulse {
+  0%, 100% { box-shadow: 0 4px 12px rgba(220, 60, 60, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.25); }
+  50%      { box-shadow: 0 4px 18px rgba(220, 60, 60, 0.95), inset 0 0 0 1px rgba(255, 255, 255, 0.4); }
+}
+
+.deck-hint {
+  position: absolute;
+  left: 50%;
+  bottom: -34px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffd24a, #ff9d2e);
+  color: #2a1a00;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 220ms ease, transform 220ms ease;
+  z-index: 4;
+}
+
+.deck-hint-finger {
+  display: inline-block;
+  animation: deckHintTap 1.1s ease-in-out infinite;
+}
+
+.deck-pile.is-drawable .deck-hint {
+  opacity: 0.9;
+}
+
+.deck-pile.no-playable .deck-hint {
+  opacity: 1;
+  transform: translateX(-50%) scale(1.06);
+  animation: deckHintGlow 1.4s ease-in-out infinite;
+}
+
+@keyframes deckHintTap {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+
+@keyframes deckHintGlow {
+  0%, 100% { box-shadow: 0 6px 14px rgba(255, 157, 46, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.5); }
+  50%      { box-shadow: 0 8px 22px rgba(255, 157, 46, 0.95), inset 0 0 0 1px rgba(255, 255, 255, 0.7); }
+}
+
 /* -------- Flying card overlay (draw + play animations) -------- */
 .flying-card {
   position: fixed;

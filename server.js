@@ -153,7 +153,8 @@ function getSafeRoom(roomCode) {
     turnEndsAt: room.turnEndsAt || null,
     turnDuration: room.currentTurnDuration || TURN_DURATION_MS,
     awaitingDeckDecision: Boolean(room.deckDecision),
-    canShuffleDeck: room.discard.length > 1
+    canShuffleDeck: room.discard.length > 1,
+    deckCount: room.deck ? room.deck.length : 0
   };
 }
 
