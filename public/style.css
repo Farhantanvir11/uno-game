@@ -880,13 +880,13 @@ body:not([data-screen="game"]) #powerEffect {
   background: radial-gradient(ellipse at 50% 48%, transparent 55%, rgba(0, 0, 0, 0.45) 100%);
 }
 
-/* Small centered logo on the table */
+/* Small centered logo on the table — sits above the centered deck */
 .arena-logo {
   position: absolute;
   left: 50%;
-  top: 48%;
+  top: 22%;
   transform: translate(-50%, -50%);
-  width: min(34vmin, 360px);
+  width: min(28vmin, 280px);
   height: auto;
   pointer-events: none;
   user-select: none;
@@ -902,8 +902,15 @@ body:not([data-screen="game"]) #powerEffect {
 
 @media (max-width: 700px) {
   .arena-logo {
-    width: min(56vmin, 280px);
+    top: 18%;
+    width: min(44vmin, 220px);
   }
+}
+
+/* Very short viewports (landscape phones) — hide the table logo so it doesn't
+   crowd the centered deck and HUD. */
+@media (max-height: 560px) {
+  .arena-logo { display: none; }
 }
 
 #game {
@@ -959,7 +966,7 @@ body:not([data-screen="game"]) #powerEffect {
   40%      { box-shadow: 0 0 24px rgba(255, 213, 79, 0.9); }
 }
 
-#game > :not(.play-backdrop):not(#powerEffect) {
+#game > :not(.play-backdrop):not(#powerEffect):not(#playArea):not(#colorPicker):not(#challengeModal):not(#deckDecisionModal) {
   position: relative;
   z-index: 1;
 }
@@ -1513,9 +1520,9 @@ body:not([data-screen="game"]) #powerEffect {
 #playArea {
   position: fixed;
   left: 50%;
-  /* sit below HUD (~56px) + safe-area; adjust via JS if needed */
-  top: calc(env(safe-area-inset-top) + 56px);
-  transform: translate(-50%, 0);
+  /* centered vertically in the play area (between top seats and hand) */
+  top: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2194,7 +2201,6 @@ body:not([data-screen="game"]) #powerEffect {
   }
 
   #playArea {
-    top: calc(env(safe-area-inset-top) + 48px);
     gap: 12px;
   }
 
@@ -3767,7 +3773,9 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 
 /* Player tile must sit above the bottom hand-strip gradient */
 #players { z-index: 5; }
-.player.is-me { z-index: 6; }
+/* Self avatar is redundant — the hand strip already represents the player.
+   Hide it so it doesn't overlap the hand cards. */
+.player.is-me { display: none; }
 .cta-primary,
 .cta-secondary {
   position: relative;

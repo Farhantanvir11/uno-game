@@ -1523,18 +1523,25 @@ function buildTimerRing() {
 // plays right after me. Arrangement is ANTI-CLOCKWISE: opp[0] sits on my right,
 // next up the right, over the top corners, and ends on my left. Deck zone
 // (yPct 8-24, xPct 35-65) is kept clear.
+// Opponents sit at the 4 corners AROUND the centered deck.
+// Play order (anti-clockwise): opp0 = my right (bottom-right),
+// opp1 = top-right, opp2 = top-left, opp3 = bottom-left (my left).
+// 5th opponent fills the top-center slot (above deck).
 const OPPONENT_SEATS = {
-  1: [{ xPct: 82, yPct: 40 }],
-  2: [{ xPct: 82, yPct: 40 }, { xPct: 18, yPct: 40 }],
-  3: [{ xPct: 82, yPct: 55 }, { xPct: 82, yPct: 28 }, { xPct: 18, yPct: 28 }],
+  1: [{ xPct: 82, yPct: 30 }],
+  2: [{ xPct: 82, yPct: 30 }, { xPct: 18, yPct: 30 }],
+  3: [
+    { xPct: 82, yPct: 68 }, { xPct: 82, yPct: 30 },
+    { xPct: 18, yPct: 30 }
+  ],
   4: [
-    { xPct: 82, yPct: 55 }, { xPct: 82, yPct: 28 },
-    { xPct: 18, yPct: 28 }, { xPct: 18, yPct: 55 }
+    { xPct: 82, yPct: 68 }, { xPct: 82, yPct: 30 },
+    { xPct: 18, yPct: 30 }, { xPct: 18, yPct: 68 }
   ],
   5: [
-    { xPct: 84, yPct: 58 }, { xPct: 82, yPct: 28 },
-    { xPct: 50, yPct: 20 }, { xPct: 18, yPct: 28 },
-    { xPct: 16, yPct: 58 }
+    { xPct: 82, yPct: 68 }, { xPct: 82, yPct: 30 },
+    { xPct: 50, yPct: 16 }, { xPct: 18, yPct: 30 },
+    { xPct: 18, yPct: 68 }
   ]
 };
 // "Me" sits bottom-center, above the hand strip, so everyone feels seated
@@ -1579,6 +1586,13 @@ function renderPlayers(room) {
       const seat = seats[seatIdx] || { xPct: 50, yPct: 32 };
       x = (seat.xPct / 100) * W;
       y = (seat.yPct / 100) * H;
+      // Clamp bottom seats so they never clip into the bottom hand strip
+      // (~165px hand + ~60px half-avatar margin) on short mobile viewports.
+      const maxY = H - 220;
+      if (y > maxY) y = maxY;
+      // Clamp top seats below the HUD on short viewports too.
+      const minY = 80;
+      if (y < minY) y = minY;
     }
 
     const item = document.createElement("div");

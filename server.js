@@ -1235,6 +1235,13 @@ io.on("connection", (socket) => {
     if (player.cards.length === 1) {
       player.calledUNO = false;
 
+      // Arm the last-card bonus: the NEXT player gets 60s to plan a counter.
+      // Mirrors the same logic in applyCardPlay() used by the bot turn path.
+      if (room.players.length >= 3) {
+        room.unoCallerId = player.id;
+        room.unoTurnBonus = true;
+      }
+
       setTimeout(() => {
         const activeRoom = rooms[roomCode];
         if (!activeRoom || !activeRoom.started) {
@@ -1500,7 +1507,7 @@ io.on("connection", (socket) => {
     if (now - lastReactionAt < 600) return;
     lastReactionAt = now;
 
-    const allowed = ["❤️", "🔥", "😂", "👍", "😱", "🤡"];
+    const allowed = ["❤️", "🔥", "😂", "👍", "😱", "😭"];
     if (typeof emoji !== "string" || !allowed.includes(emoji)) return;
     const roomCode = Object.keys(rooms).find((code) =>
       rooms[code].players.some((p) => p.id === socket.id) ||
