@@ -1516,6 +1516,19 @@ function renderTopCard(room) {
 
   topCardElement.innerHTML = html;
 
+  // Tint the felt mat + top-card halo from the active card's color.
+  const TINTS = {
+    red:    { glow: "rgba(229, 57, 53, 0.55)",  mat: "rgba(229, 57, 53, 0.18)" },
+    green:  { glow: "rgba(67, 160, 71, 0.55)",  mat: "rgba(67, 160, 71, 0.18)" },
+    blue:   { glow: "rgba(30, 136, 229, 0.55)", mat: "rgba(30, 136, 229, 0.18)" },
+    yellow: { glow: "rgba(251, 192, 45, 0.55)", mat: "rgba(251, 192, 45, 0.18)" },
+    black:  { glow: "rgba(255, 213, 79, 0.45)", mat: "rgba(255, 213, 79, 0.14)" }
+  };
+  const tint = TINTS[top.color] || TINTS.black;
+  topCardElement.style.setProperty("--top-glow", tint.glow);
+  const playArea = document.getElementById("playArea");
+  if (playArea) playArea.style.setProperty("--mat-tint", tint.mat);
+
   // Trim cache so it doesn't grow unbounded over a long match.
   if (_discardFanCache.size > 64) {
     const keep = new Set(slice.map((c, i) => `${c.color}:${c.value}:${start + i}`));
