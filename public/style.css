@@ -1552,28 +1552,6 @@ body:not([data-screen="game"]) #powerEffect {
   z-index: 10;
 }
 
-/* Slow rotating dashed ring around the play area indicating turn direction. */
-#playArea::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 280px;
-  height: 280px;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  border: 2px dashed rgba(255, 213, 79, 0.22);
-  pointer-events: none;
-  z-index: 0;
-  animation: dirRingSpin 18s linear infinite;
-}
-#playArea[data-direction="ccw"]::after {
-  animation-direction: reverse;
-}
-@keyframes dirRingSpin {
-  to { transform: translate(-50%, -50%) rotate(360deg); }
-}
-
 /* Felt table mat behind the deck + discard, color-tinted by the top card. */
 #playArea::before {
   content: "";
@@ -2370,11 +2348,7 @@ body:not([data-screen="game"]) #powerEffect {
     gap: 12px;
   }
 
-  /* Shrink decorative ring + felt mat so they don't crowd the seats. */
-  #playArea::after {
-    width: 230px;
-    height: 230px;
-  }
+  /* Shrink felt mat so it doesn't crowd the seats. */
   #playArea::before {
     width: 260px;
     height: 180px;
