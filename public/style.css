@@ -1563,6 +1563,11 @@ body:not([data-screen="game"]) #powerEffect {
 
 #playArea > * {
   pointer-events: auto;
+}
+/* Lift deck + topCard above the felt mat (::before is at z-index 0).
+   Don't apply to .stack-cleared-hint — it stays position: absolute. */
+#playArea > #deck,
+#playArea > #topCard {
   position: relative;
   z-index: 1;
 }
