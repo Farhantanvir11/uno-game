@@ -2196,10 +2196,34 @@ socket.on("gameOver", (winnerName) => {
     wlDelta.classList.remove("is-up");
   }
 
-  // Refresh stats so the menu reflects the result the next time the player goes back.
-  if (userProfile && userProfile.userId) socket.emit("requestStats");
-  // Pull the latest leaderboard for the winner-modal panel (and the menu modal).
-  try { socket.emit("requestLeaderboard", { limit: 20 }); } catch {}
+  // For OFFLINE bot matches: the server never saw the game, so persist the
+  // outcome via the real socket here. Multiplayer games are recorded server-side.
+  if (_transportMode === "local" && userProfile && userProfile.userId &&
+      _realSocket && _realSocket.connected) {
+    const me = currentRoom && Array.isArray(currentRoom.players)
+      ? currentRoom.players.find((p) => p && !p.isBot)
+      : null;
+    const cardsPlayed = (me && Number.isFinite(me.cardsPlayed)) ? me.cardsPlayed : 0;
+    const won = !!(me && me.name === winnerName);
+    try { _realSocket.emit("recordBotResult", { won, cardsPlayed }); } catch {}
+  }
+
+  // Refresh stats + leaderboard. For LOCAL bot matches, the server pushes
+  // both automatically in response to recordBotResult above, so we skip the
+  // explicit requests to avoid a stale-data race.
+  const recordedBotResult = _transportMode === "local"
+    && userProfile && userProfile.userId
+    && _realSocket && _realSocket.connected;
+  if (!recordedBotResult) {
+    if (userProfile && userProfile.userId) socket.emit("requestStats");
+    try {
+      if (_realSocket && _realSocket.connected) {
+        _realSocket.emit("requestLeaderboard", { limit: 20 });
+      } else {
+        socket.emit("requestLeaderboard", { limit: 20 });
+      }
+    } catch {}
+  }
 });
 
 /* ----------------------- Emoji reactions ----------------------- */

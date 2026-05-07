@@ -921,6 +921,31 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Persist a single offline-bot game result for the authenticated user.
+  // Bot games run client-side, so the server never sees finishGame() for them —
+  // the client posts the result here so leaderboard/stats stay accurate.
+  socket.on("recordBotResult", async ({ won, cardsPlayed } = {}) => {
+    const userId = socket.data && socket.data.userId;
+    if (!userId) return;
+    try {
+      await dbApi.recordGameResult([{
+        userId,
+        won: !!won,
+        cardsPlayed: Math.max(0, Math.min(200, Number(cardsPlayed) || 0))
+      }]);
+      // Push fresh stats AND leaderboard so the winner modal updates without
+      // racing a separate requestLeaderboard call.
+      const [stats, rows] = await Promise.all([
+        dbApi.getStats(userId),
+        dbApi.getLeaderboard(20)
+      ]);
+      socket.emit("stats", stats);
+      socket.emit("leaderboard", { rows, myUserId: userId });
+    } catch (err) {
+      console.error("[stats] recordBotResult:", err);
+    }
+  });
+
   socket.on("requestLeaderboard", async ({ limit } = {}) => {
     try {
       const rows = await dbApi.getLeaderboard(limit);
