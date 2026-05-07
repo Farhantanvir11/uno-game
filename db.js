@@ -218,7 +218,7 @@ async function getLeaderboard(limit = 20) {
                  s.games_played AS games_played,
                  s.best_streak AS best_streak,
                  s.current_streak AS current_streak,
-                 MAX(0, s.wins * 20 - s.losses * 10) AS trophies
+                 (s.games_played * 5 + s.wins * 25) AS trophies
             FROM user_stats s
             JOIN users u ON u.id = s.user_id
            WHERE s.games_played > 0

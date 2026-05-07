@@ -1312,6 +1312,7 @@ function renderHand(room) {
     cardElement.className = `card ${card.color}`;
     cardElement.innerHTML = buildCardInnerHTML(card);
     cardElement.disabled = !isMyTurn;
+    cardElement.style.setProperty("--i", idx);
 
     const playable = isMyTurn && isCardPlayable(card, top, room.stackCount, room.rules);
     if (playable) {
@@ -1325,6 +1326,10 @@ function renderHand(room) {
 
     handElement.appendChild(cardElement);
   });
+
+  // Drive the hand-fan CSS arc via custom properties.
+  handElement.style.setProperty("--n", Math.max(myCards.length, 1));
+  handElement.classList.toggle("is-last-card", myCards.length === 1);
 
   previousHandLength = myCards.length;
 
@@ -1741,8 +1746,10 @@ function showYourTurnBanner() {
 
 function updateDirectionIndicator(room) {
   const badge = document.getElementById("directionBadge");
-  if (!badge) return;
   const dir = room.direction === -1 ? "ccw" : "cw";
+  const playArea = document.getElementById("playArea");
+  if (playArea) playArea.dataset.direction = dir;
+  if (!badge) return;
   badge.dataset.direction = dir;
   if (previousRoomSnapshot && previousRoomSnapshot.direction !== room.direction) {
     restartAnimation(badge, "flipped");
@@ -2672,7 +2679,7 @@ socket.on("leaderboard", ({ rows, myUserId, error } = {}) => {
     const medal = r.rank === 1 ? "🥇" : r.rank === 2 ? "🥈" : r.rank === 3 ? "🥉" : `#${r.rank}`;
     const trophies = Number.isFinite(r.trophies)
       ? r.trophies
-      : Math.max(0, (r.wins || 0) * 20 - (r.losses || 0) * 10);
+      : ((r.gamesPlayed || 0) * 5 + (r.wins || 0) * 25);
     const tier = trophyTier(trophies);
     return `
       <div class="lb-row${isMe ? " is-me" : ""}">

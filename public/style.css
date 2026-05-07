@@ -1346,13 +1346,30 @@ body:not([data-screen="game"]) #powerEffect {
 #hand > .card {
   transform-origin: bottom center;
   z-index: 1;
+  /* Fan curve: each card tilted by index relative to centre. Clamped so
+     the outermost cards never tilt past ±10° even with huge hands. */
+  --mid: calc((var(--n, 1) - 1) / 2);
+  --off: calc(var(--i, 0) - var(--mid));
+  --rot: clamp(-10deg, calc(var(--off) * 2.2deg), 10deg);
+  transform: rotate(var(--rot));
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 200ms ease;
 }
 #hand > .card + .card {
   margin-left: 10px;
 }
-#hand > .card:hover:not(:disabled) {
-  transform: translateY(-18px) scale(1.08);
+#hand > .card:hover:not(:disabled),
+#hand > .card:focus-visible:not(:disabled) {
+  transform: translateY(-18px) scale(1.08) rotate(var(--rot));
   z-index: 20;
+}
+
+/* Last-card aura: golden glow around the lone card in your hand. */
+#hand.is-last-card > .card {
+  animation: lastCardAura 1.6s ease-in-out infinite;
+}
+@keyframes lastCardAura {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(255, 213, 79, 0.55), 0 6px 16px rgba(0,0,0,0.4), 0 0 18px rgba(255, 213, 79, 0.45); }
+  50%      { box-shadow: 0 0 0 3px rgba(255, 235, 130, 0.85), 0 6px 18px rgba(0,0,0,0.5), 0 0 32px rgba(255, 213, 79, 0.85); }
 }
 
 .card {
@@ -1533,6 +1550,28 @@ body:not([data-screen="game"]) #powerEffect {
   gap: 28px;
   pointer-events: none;
   z-index: 10;
+}
+
+/* Slow rotating dashed ring around the play area indicating turn direction. */
+#playArea::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 280px;
+  height: 280px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 213, 79, 0.22);
+  pointer-events: none;
+  z-index: 0;
+  animation: dirRingSpin 18s linear infinite;
+}
+#playArea[data-direction="ccw"]::after {
+  animation-direction: reverse;
+}
+@keyframes dirRingSpin {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
 }
 
 /* Felt table mat behind the deck + discard, color-tinted by the top card. */
@@ -2331,6 +2370,20 @@ body:not([data-screen="game"]) #powerEffect {
     gap: 12px;
   }
 
+  /* Shrink decorative ring + felt mat so they don't crowd the seats. */
+  #playArea::after {
+    width: 230px;
+    height: 230px;
+  }
+  #playArea::before {
+    width: 260px;
+    height: 180px;
+  }
+  #topCard::before {
+    width: 180px;
+    height: 180px;
+  }
+
   #topCard,
   .deck-pile {
     width: 84px;
@@ -2356,17 +2409,19 @@ body:not([data-screen="game"]) #powerEffect {
   #hand::-webkit-scrollbar { display: none; }
 
   #hand > .card + .card {
-    margin-left: -38px;
+    margin-left: -44px;
   }
 
   #hand > .card {
     transition: transform 180ms ease, margin 180ms ease, z-index 0s;
+    /* Tighter fan on phones so 12 cards fit without horizontal scroll. */
+    --rot: clamp(-8deg, calc(var(--off) * 1.6deg), 8deg);
   }
 
   #hand > .card:hover:not(:disabled),
   #hand > .card:focus-visible:not(:disabled),
   #hand > .card:active:not(:disabled) {
-    transform: translateY(-16px) scale(1.08);
+    transform: translateY(-16px) scale(1.08) rotate(var(--rot));
     z-index: 30;
   }
 
