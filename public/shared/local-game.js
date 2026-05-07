@@ -227,14 +227,21 @@
           if (!room) return;
           const { handSize, cards, rules } = payload || {};
           if (rules) Object.assign(room.rules, rules);
-          startGame(handSize || cards || 7, room.rules);
+          // Accept numeric or string ("5"/"7"/"10") from the lobby <select>.
+          const raw = handSize !== undefined ? handSize : cards;
+          const n = Number.parseInt(raw, 10);
+          const hs = [5, 7, 10].includes(n) ? n : (room.handSize || 7);
+          startGame(hs, room.rules);
           break;
         }
 
         case "updateLobbyRules": {
           if (!room) return;
           if (payload && payload.rules) Object.assign(room.rules, payload.rules);
-          if (payload && Number.isInteger(payload.handSize)) room.handSize = payload.handSize;
+          if (payload && payload.handSize !== undefined) {
+            const n = Number.parseInt(payload.handSize, 10);
+            if ([5, 7, 10].includes(n)) room.handSize = n;
+          }
           emitLobby();
           break;
         }
