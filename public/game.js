@@ -921,7 +921,27 @@ async function copyInviteLink() {
     text: `Join my room ${roomCode} on Last Card Battle!`,
     url: link
   };
-  // Prefer the native share sheet on mobile.
+  // Inside the Capacitor APK, navigator.share is unavailable — use the
+  // native Share plugin so Android opens its system share sheet.
+  const Cap = typeof window !== "undefined" ? window.Capacitor : null;
+  const isNative = !!(Cap && Cap.isNativePlatform && Cap.isNativePlatform());
+  const NativeShare = Cap && Cap.Plugins && Cap.Plugins.Share;
+  if (isNative && NativeShare && typeof NativeShare.share === "function") {
+    try {
+      await NativeShare.share({
+        title: shareData.title,
+        text: shareData.text,
+        url: shareData.url,
+        dialogTitle: "Invite a player"
+      });
+      flashCopiedState("copyInviteBtn");
+      return;
+    } catch (err) {
+      // User dismissed the share sheet — don't also copy.
+      return;
+    }
+  }
+  // Web: prefer the native share sheet on mobile browsers.
   const canUseShare =
     typeof navigator !== "undefined" &&
     typeof navigator.share === "function" &&
