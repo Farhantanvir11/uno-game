@@ -902,8 +902,45 @@ function copyRoomCode() {
   flashCopiedState();
 }
 
-function flashCopiedState() {
-  const btn = document.getElementById("copyCodeBtn");
+function buildInviteLink() {
+  if (!roomCode) return "";
+  const url = new URL(window.location.href);
+  // Drop any existing query so the link is clean.
+  url.search = "";
+  url.searchParams.set("room", roomCode);
+  const hostName = userProfile?.name;
+  if (hostName) url.searchParams.set("from", hostName);
+  return url.toString();
+}
+
+async function copyInviteLink() {
+  const link = buildInviteLink();
+  if (!link) return;
+  // Prefer the native share sheet on mobile.
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: "Last Card Battle",
+        text: `Join my room ${roomCode} on Last Card Battle!`,
+        url: link
+      });
+      flashCopiedState("copyInviteBtn");
+      return;
+    } catch {
+      // fall through to clipboard if user cancels/share fails
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(link);
+    showToast("Invite link copied", 1100);
+  } catch {
+    showToast(link, 1600);
+  }
+  flashCopiedState("copyInviteBtn");
+}
+
+function flashCopiedState(btnId = "copyCodeBtn") {
+  const btn = document.getElementById(btnId);
   if (!btn) return;
   if (btn._copyResetTimer) clearTimeout(btn._copyResetTimer);
   btn.classList.add("copied");
@@ -2468,7 +2505,7 @@ function syncNameField() {
   if (userProfile && userProfile.name) hidden.value = userProfile.name;
 }
 
-/* Pre-fill friendsName from saved profile */
+/* Pre-fill friendsName from saved profile + handle invite-link params */
 window.addEventListener("DOMContentLoaded", () => {
   const friendsInput = document.getElementById("friendsName");
   if (friendsInput && userProfile && userProfile.name) {
@@ -2476,7 +2513,38 @@ window.addEventListener("DOMContentLoaded", () => {
   }
   syncNameField();
   updateSettingsSwitches();
+  applyInviteLinkParams();
 });
+
+// Parse ?room=XYZ&from=Name and prefill the join flow so an invite link
+// drops the recipient straight into the friends screen with everything ready.
+function applyInviteLinkParams() {
+  let params;
+  try { params = new URLSearchParams(window.location.search); } catch { return; }
+  const roomParam = (params.get("room") || "").trim().toUpperCase();
+  const fromParam = (params.get("from") || "").trim();
+  if (!roomParam) return;
+
+  const codeInput = document.getElementById("roomCode");
+  if (codeInput) codeInput.value = roomParam;
+
+  const friendsInput = document.getElementById("friendsName");
+  if (friendsInput && !friendsInput.value && userProfile?.name) {
+    friendsInput.value = userProfile.name;
+  }
+
+  // Hop to the friends screen so the user can hit Join immediately.
+  if (typeof goToFriends === "function") goToFriends();
+
+  if (fromParam) showToast(`${fromParam} invited you to room ${roomParam}`, 1800);
+
+  // Strip the params so refresh doesn't keep re-routing.
+  try {
+    const url = new URL(window.location.href);
+    url.search = "";
+    window.history.replaceState({}, "", url.toString());
+  } catch {}
+}
 
 /* ---------- Routing ---------- */
 function goToLanding() {
