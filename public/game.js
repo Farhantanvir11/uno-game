@@ -1469,17 +1469,58 @@ function maybeShowFirstPlayHint(isMyTurn, playableCards) {
   }
 }
 
+// Stable per-card random rotation/offset so existing cards in the fan don't
+// jiggle every render — only the newly added top card gets fresh values.
+const _discardFanCache = new Map(); // key: `${color}:${value}:${index}` → {rot, dx, dy}
+function _fanStyleFor(card, index) {
+  const key = `${card.color}:${card.value}:${index}`;
+  let s = _discardFanCache.get(key);
+  if (!s) {
+    s = {
+      rot: (Math.random() * 22 - 11).toFixed(1),  // -11°..+11°
+      dx:  (Math.random() * 14 - 7).toFixed(1),   // -7..+7 px
+      dy:  (Math.random() * 10 - 5).toFixed(1)    // -5..+5 px
+    };
+    _discardFanCache.set(key, s);
+  }
+  return s;
+}
+
 function renderTopCard(room) {
-  const top = room.discard[room.discard.length - 1];
-  if (!top) {
+  const discard = room.discard || [];
+  if (discard.length === 0) {
     topCardElement.innerHTML = "";
     return;
   }
 
+  const top = discard[discard.length - 1];
   const topKey = `${top.color}:${top.value}`;
   lastTopCardKey = topKey;
 
-  topCardElement.innerHTML = buildCardFaceHTML(top);
+  // Show up to the last 6 cards as a fanned stack; topmost is the active card.
+  const FAN_DEPTH = 6;
+  const start = Math.max(0, discard.length - FAN_DEPTH);
+  const slice = discard.slice(start);
+
+  let html = "";
+  slice.forEach((card, i) => {
+    const absIdx = start + i;
+    const isTop = i === slice.length - 1;
+    const s = isTop ? { rot: 0, dx: 0, dy: 0 } : _fanStyleFor(card, absIdx);
+    const z = i + 1;
+    html += `<div class="discard-card${isTop ? " is-top" : ""}" ` +
+            `style="--rot:${s.rot}deg;--dx:${s.dx}px;--dy:${s.dy}px;z-index:${z};">` +
+            buildCardFaceHTML(card) +
+            `</div>`;
+  });
+
+  topCardElement.innerHTML = html;
+
+  // Trim cache so it doesn't grow unbounded over a long match.
+  if (_discardFanCache.size > 64) {
+    const keep = new Set(slice.map((c, i) => `${c.color}:${c.value}:${start + i}`));
+    for (const k of _discardFanCache.keys()) if (!keep.has(k)) _discardFanCache.delete(k);
+  }
 }
 
 // Five illustrated avatars (DiceBear "big-smile" + "personas" mix).
