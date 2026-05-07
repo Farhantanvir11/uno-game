@@ -1440,7 +1440,12 @@ io.on("connection", (socket) => {
       player.disconnectTimer = null;
     }
 
+    // If this player was the host, repoint hostId to the new socket id —
+    // otherwise host-only actions (startGame, updateLobbyRules, resolveDeckDecision)
+    // silently fail after a reconnect.
+    const wasHost = room.hostId === player.id;
     player.id = socket.id;
+    if (wasHost) room.hostId = socket.id;
     player.disconnected = false;
     if (player.userId) socket.data.userId = player.userId;
     socket.join(code);
