@@ -2906,6 +2906,42 @@ body:not([data-screen="game"]) #powerEffect {
   .hud-leave { font-size: 0.78rem; }
 }
 
+/* -------- Winner modal: leaderboard panel -------- */
+.winner-leaderboard {
+  margin: 14px 0 4px;
+  padding: 12px 10px 8px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 213, 79, 0.22);
+  border-radius: 14px;
+  text-align: left;
+  max-height: 38vh;
+  overflow-y: auto;
+}
+.winner-leaderboard-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 0 6px;
+}
+.winner-leaderboard-head .wl-title {
+  font-family: "Fredoka", "Nunito", system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #ffd54f;
+  font-size: 0.95rem;
+}
+.winner-leaderboard-head .wl-sub {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+.winner-leaderboard-head .wl-sub.is-up {
+  color: #b8f5c4;
+  font-weight: 600;
+}
+
 /* -------- Winner modal: rematch + back row -------- */
 .winner-actions {
   display: flex;

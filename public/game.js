@@ -117,11 +117,19 @@ socket.on("profileUpdated", (payload) => {
   renderProfileSummary();
 });
 
+// Track the player's trophy total so we can show a +N delta on game-over.
+let _lastSeenTrophies = null;
+
 socket.on("stats", (stats) => {
   if (!userProfile) return;
   userProfile = { ...userProfile, stats };
   writeProfile(userProfile);
   renderProfileSummary();
+  // Seed the trophy baseline (only on the first stats payload of a session)
+  // so the next game-over can show an accurate +N delta.
+  if (_lastSeenTrophies == null && stats && Number.isFinite(stats.gamesPlayed)) {
+    _lastSeenTrophies = (stats.gamesPlayed * 5) + (stats.wins * 25);
+  }
 });
 
 socket.on("loginError", (code) => {
@@ -2179,8 +2187,19 @@ socket.on("gameOver", (winnerName) => {
   resetRematchButton();
   burstConfetti();
 
+  // Reset the winner-modal leaderboard panel until fresh rows arrive.
+  const wlList = document.getElementById("winnerLeaderboardList");
+  if (wlList) wlList.innerHTML = '<div class="lb-empty">Updating leaderboard…</div>';
+  const wlDelta = document.getElementById("winnerTrophyDelta");
+  if (wlDelta) {
+    wlDelta.textContent = "";
+    wlDelta.classList.remove("is-up");
+  }
+
   // Refresh stats so the menu reflects the result the next time the player goes back.
   if (userProfile && userProfile.userId) socket.emit("requestStats");
+  // Pull the latest leaderboard for the winner-modal panel (and the menu modal).
+  try { socket.emit("requestLeaderboard", { limit: 20 }); } catch {}
 });
 
 /* ----------------------- Emoji reactions ----------------------- */
@@ -2770,14 +2789,22 @@ function _escapeHtml(s) {
 }
 
 socket.on("leaderboard", ({ rows, myUserId, error } = {}) => {
-  const list = document.getElementById("leaderboardList");
-  if (!list) return;
+  const lists = [
+    document.getElementById("leaderboardList"),
+    document.getElementById("winnerLeaderboardList")
+  ].filter(Boolean);
+  if (lists.length === 0) return;
+
   if (error) {
-    list.innerHTML = '<div class="lb-empty">Couldn\'t load leaderboard. Try again later.</div>';
+    lists.forEach((l) => {
+      l.innerHTML = '<div class="lb-empty">Couldn\'t load leaderboard. Try again later.</div>';
+    });
     return;
   }
   if (!Array.isArray(rows) || rows.length === 0) {
-    list.innerHTML = '<div class="lb-empty">No games played yet. Be the first to win!</div>';
+    lists.forEach((l) => {
+      l.innerHTML = '<div class="lb-empty">No games played yet. Be the first to win!</div>';
+    });
     return;
   }
   const html = rows.map((r) => {
@@ -2796,7 +2823,30 @@ socket.on("leaderboard", ({ rows, myUserId, error } = {}) => {
         <span class="lb-col-streak">🔥 ${r.bestStreak}</span>
       </div>`;
   }).join("");
-  list.innerHTML = html;
+  lists.forEach((l) => { l.innerHTML = html; });
+
+  // Show the trophy delta for "you" in the winner modal.
+  const me = myUserId ? rows.find((r) => r.userId === myUserId) : null;
+  const deltaEl = document.getElementById("winnerTrophyDelta");
+  if (deltaEl) {
+    if (me && Number.isFinite(me.trophies)) {
+      const prev = _lastSeenTrophies;
+      const diff = prev != null ? me.trophies - prev : null;
+      if (diff != null && diff > 0) {
+        deltaEl.textContent = `+${diff} 🏆 → ${me.trophies} total`;
+        deltaEl.classList.add("is-up");
+      } else {
+        deltaEl.textContent = `🏆 ${me.trophies} total`;
+        deltaEl.classList.remove("is-up");
+      }
+      _lastSeenTrophies = me.trophies;
+    } else {
+      deltaEl.textContent = "";
+      deltaEl.classList.remove("is-up");
+    }
+  } else if (me && Number.isFinite(me.trophies)) {
+    _lastSeenTrophies = me.trophies;
+  }
 });
 
 // Map trophy count to tier label/key. Thresholds tuned for early-game pacing.

@@ -557,6 +557,24 @@
       <p class="winner-tag">Champion Crowned</p>
       <h2 id="winnerName"></h2>
       <p class="winner-subtitle">The table is clear. A new battle can begin whenever your squad is ready.</p>
+
+      <div class="winner-leaderboard" id="winnerLeaderboard">
+        <div class="winner-leaderboard-head">
+          <span class="wl-title">🏆 Leaderboard</span>
+          <span class="wl-sub" id="winnerTrophyDelta"></span>
+        </div>
+        <div class="lb-header-row">
+          <span class="lb-col-rank">#</span>
+          <span class="lb-col-name">Player</span>
+          <span class="lb-col-trophies">🏆</span>
+          <span class="lb-col-tier">Tier</span>
+          <span class="lb-col-streak">Streak</span>
+        </div>
+        <div class="lb-list" id="winnerLeaderboardList">
+          <div class="lb-empty">Loading leaderboard…</div>
+        </div>
+      </div>
+
       <div class="winner-actions">
         <button id="rematchBtn" class="winner-rematch" onclick="requestRematch()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

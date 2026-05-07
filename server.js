@@ -350,7 +350,7 @@ function isPowerCard(card) {
   return ["+2", "+4", "skip", "reverse", "wild"].includes(card.value);
 }
 
-function finishGame(roomCode, winnerName) {
+async function finishGame(roomCode, winnerName) {
   const room = rooms[roomCode];
   if (!room) {
     return;
@@ -362,6 +362,8 @@ function finishGame(roomCode, winnerName) {
   stopTurnTimer(room);
 
   // Persist stats for every authenticated human player in this game.
+  // Await the DB write so any leaderboard/stats request triggered by
+  // the gameOver event sees the new counts (no stale "stuck" trophies).
   try {
     const outcomes = room.players
       .filter((p) => !p.isBot && p.userId)
@@ -370,7 +372,9 @@ function finishGame(roomCode, winnerName) {
         won: p.name === winnerName,
         cardsPlayed: p.cardsPlayed || 0
       }));
-    if (outcomes.length > 0) dbApi.recordGameResult(outcomes).catch((err) => console.error("[stats] recordGameResult:", err));
+    if (outcomes.length > 0) {
+      await dbApi.recordGameResult(outcomes);
+    }
   } catch (err) {
     console.error("[stats] failed to record game result:", err);
   }
