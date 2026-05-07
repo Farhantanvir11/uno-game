@@ -916,18 +916,27 @@ function buildInviteLink() {
 async function copyInviteLink() {
   const link = buildInviteLink();
   if (!link) return;
+  const shareData = {
+    title: "Last Card Battle",
+    text: `Join my room ${roomCode} on Last Card Battle!`,
+    url: link
+  };
   // Prefer the native share sheet on mobile.
-  if (navigator.share) {
+  const canUseShare =
+    typeof navigator !== "undefined" &&
+    typeof navigator.share === "function" &&
+    (typeof navigator.canShare !== "function" || navigator.canShare(shareData));
+  if (canUseShare) {
     try {
-      await navigator.share({
-        title: "Last Card Battle",
-        text: `Join my room ${roomCode} on Last Card Battle!\n${link}`,
-        url: link
-      });
+      await navigator.share(shareData);
       flashCopiedState("copyInviteBtn");
       return;
-    } catch {
-      // fall through to clipboard if user cancels/share fails
+    } catch (err) {
+      // User canceled the share sheet — don't also copy/toast.
+      if (err && (err.name === "AbortError" || err.name === "CanceledError")) {
+        return;
+      }
+      // Other errors (NotAllowedError, etc.) — fall through to clipboard.
     }
   }
   try {
