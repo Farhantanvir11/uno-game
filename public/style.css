@@ -966,7 +966,7 @@ body:not([data-screen="game"]) #powerEffect {
   40%      { box-shadow: 0 0 24px rgba(255, 213, 79, 0.9); }
 }
 
-#game > :not(.play-backdrop):not(#powerEffect):not(#playArea):not(#colorPicker):not(#challengeModal):not(#deckDecisionModal) {
+#game > :not(.play-backdrop):not(#powerEffect):not(#playArea):not(#players):not(#colorPicker):not(#challengeModal):not(#deckDecisionModal) {
   position: relative;
   z-index: 1;
 }

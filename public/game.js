@@ -1527,21 +1527,27 @@ function buildTimerRing() {
 // Play order (anti-clockwise): opp0 = my right (bottom-right),
 // opp1 = top-right, opp2 = top-left, opp3 = bottom-left (my left).
 // 5th opponent fills the top-center slot (above deck).
+// Five clearly separated rows so nothing overlaps:
+//   Logo row : ~12-18%   (CSS .arena-logo)
+//   Top seats: 28%        (clearly below logo, above deck)
+//   Deck     : 50%        (#playArea centered)
+//   Bot seats: 70%        (below deck, above hand)
+//   Hand     : bottom     (#hand fixed strip)
 const OPPONENT_SEATS = {
-  1: [{ xPct: 82, yPct: 30 }],
-  2: [{ xPct: 82, yPct: 30 }, { xPct: 18, yPct: 30 }],
+  1: [{ xPct: 82, yPct: 28 }],
+  2: [{ xPct: 82, yPct: 28 }, { xPct: 18, yPct: 28 }],
   3: [
-    { xPct: 82, yPct: 68 }, { xPct: 82, yPct: 30 },
-    { xPct: 18, yPct: 30 }
+    { xPct: 82, yPct: 70 }, { xPct: 82, yPct: 28 },
+    { xPct: 18, yPct: 28 }
   ],
   4: [
-    { xPct: 82, yPct: 68 }, { xPct: 82, yPct: 30 },
-    { xPct: 18, yPct: 30 }, { xPct: 18, yPct: 68 }
+    { xPct: 82, yPct: 70 }, { xPct: 82, yPct: 28 },
+    { xPct: 18, yPct: 28 }, { xPct: 18, yPct: 70 }
   ],
   5: [
-    { xPct: 82, yPct: 68 }, { xPct: 82, yPct: 30 },
-    { xPct: 50, yPct: 16 }, { xPct: 18, yPct: 30 },
-    { xPct: 18, yPct: 68 }
+    { xPct: 82, yPct: 70 }, { xPct: 82, yPct: 28 },
+    { xPct: 50, yPct: 6 },  { xPct: 18, yPct: 28 },
+    { xPct: 18, yPct: 70 }
   ]
 };
 // "Me" sits bottom-center, above the hand strip, so everyone feels seated
