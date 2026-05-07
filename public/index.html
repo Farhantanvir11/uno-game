@@ -290,20 +290,22 @@
         </div>
         <div class="lobby-code-row">
           <h2 class="lobby-code" id="roomTitle">——</h2>
-          <button class="lobby-copy" id="copyCodeBtn" title="Copy room code" onclick="copyRoomCode()">
+          <button class="lobby-copy lobby-copy-code" id="copyCodeBtn" title="Copy room code" onclick="copyRoomCode()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="9" y="9" width="11" height="11" rx="2"/>
               <path d="M5 15V5a2 2 0 0 1 2-2h10"/>
             </svg>
+            <span>Copy</span>
           </button>
-          <button class="lobby-copy" id="copyInviteBtn" title="Copy invite link" onclick="copyInviteLink()">
+          <button class="lobby-copy lobby-send-link" id="copyInviteBtn" title="Send invite link" onclick="copyInviteLink()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07L11 5"/>
               <path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07L13 19"/>
             </svg>
+            <span>Send Link</span>
           </button>
         </div>
-        <p class="lobby-hint">Share the code or tap the link icon to send a one-tap invite.</p>
+        <p class="lobby-hint">Share the room code, or tap <b>Send Link</b> for a one-tap invite.</p>
       </div>
 
       <div class="lobby-section">

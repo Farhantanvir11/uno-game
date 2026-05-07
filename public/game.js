@@ -921,7 +921,7 @@ async function copyInviteLink() {
     try {
       await navigator.share({
         title: "Last Card Battle",
-        text: `Join my room ${roomCode} on Last Card Battle!`,
+        text: `Join my room ${roomCode} on Last Card Battle!\n${link}`,
         url: link
       });
       flashCopiedState("copyInviteBtn");
@@ -944,8 +944,17 @@ function flashCopiedState(btnId = "copyCodeBtn") {
   if (!btn) return;
   if (btn._copyResetTimer) clearTimeout(btn._copyResetTimer);
   btn.classList.add("copied");
+  const label = btn.querySelector("span");
+  if (label) {
+    if (btn._origLabel == null) btn._origLabel = label.textContent;
+    label.textContent = "Copied!";
+  }
   btn._copyResetTimer = setTimeout(() => {
     btn.classList.remove("copied");
+    if (label && btn._origLabel != null) {
+      label.textContent = btn._origLabel;
+      btn._origLabel = null;
+    }
     btn._copyResetTimer = null;
   }, 1100);
 }

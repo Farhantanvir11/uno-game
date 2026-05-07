@@ -374,6 +374,27 @@ body:not([data-screen="game"]) #powerEffect {
   font-family: "Fredoka", "Nunito", system-ui, sans-serif;
 }
 
+.lobby-copy-code,
+.lobby-send-link {
+  padding: 0 14px;
+  gap: 8px;
+  font-weight: 700;
+  font-family: "Fredoka", "Nunito", system-ui, sans-serif;
+  font-size: 0.9rem;
+}
+.lobby-copy-code svg,
+.lobby-send-link svg {
+  width: 18px;
+  height: 18px;
+}
+.lobby-send-link {
+  background: linear-gradient(180deg, #ffd54f 0%, #ffb300 100%);
+  color: #2a1a00;
+  border-color: rgba(255, 213, 79, 0.6);
+}
+.lobby-copy-code:hover,
+.lobby-send-link:hover { transform: translateY(-1px); }
+
 .lobby-copy {
   height: 48px;
   min-width: 48px;
@@ -394,11 +415,6 @@ body:not([data-screen="game"]) #powerEffect {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
-.lobby-copy::after {
-  content: "Copy";
-  transition: content 0.15s ease;
-}
-
 .lobby-copy.copied {
   background: rgba(76, 217, 100, 0.28);
   border-color: rgba(76, 217, 100, 0.7);
@@ -406,7 +422,6 @@ body:not([data-screen="game"]) #powerEffect {
   box-shadow: 0 6px 18px rgba(76, 217, 100, 0.35);
   animation: copyPulse 0.32s ease;
 }
-.lobby-copy.copied::after { content: "Copied!"; }
 .lobby-copy.copied svg { stroke: #b8f5c4; }
 
 @keyframes copyPulse {
