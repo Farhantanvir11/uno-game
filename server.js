@@ -628,7 +628,9 @@ function applyCardPlay(roomCode, player, playedCard, priorContext) {
     room.direction *= -1;
   }
 
-  const shouldSkip = playedCard.value === "skip";
+  const shouldSkip =
+    playedCard.value === "skip" ||
+    (playedCard.value === "reverse" && room.players.length === 2);
   advanceToNextTurn(roomCode, shouldSkip ? 2 : 1);
 }
 
@@ -1325,7 +1327,9 @@ io.on("connection", (socket) => {
       room.direction *= -1;
     }
 
-    const shouldSkip = playedCard.value === "skip";
+    const shouldSkip =
+      playedCard.value === "skip" ||
+      (playedCard.value === "reverse" && room.players.length === 2);
     advanceToNextTurn(roomCode, shouldSkip ? 2 : 1);
   });
 

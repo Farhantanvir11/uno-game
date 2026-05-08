@@ -150,7 +150,9 @@
 
       if (playedCard.value === "reverse") room.direction *= -1;
 
-      const skip = playedCard.value === "skip";
+      const skip =
+        playedCard.value === "skip" ||
+        (playedCard.value === "reverse" && room.players.length === 2);
       advanceAndSchedule(skip ? 2 : 1);
     }
 
