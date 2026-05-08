@@ -9,9 +9,15 @@
   // Splash screen — hide once first paint settles (game.js will have started).
   const SplashScreen = Cap.Plugins && Cap.Plugins.SplashScreen;
   if (SplashScreen) {
-    window.addEventListener("load", () => {
-      setTimeout(() => SplashScreen.hide().catch(() => {}), 400);
-    });
+    // Hide the native splash as soon as the WebView has any DOM, so the in-page
+    // "Connecting to game server…" overlay (rendered by game.js) becomes visible
+    // during the cold-start socket handshake instead of the bare splash.
+    const hideSplash = () => SplashScreen.hide().catch(() => {});
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", hideSplash, { once: true });
+    } else {
+      hideSplash();
+    }
   }
 
   // Status bar — dark theme, fixed background.

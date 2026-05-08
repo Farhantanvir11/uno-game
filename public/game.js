@@ -229,10 +229,14 @@ const _connSub     = document.getElementById("connSub");
 let _hasEverConnected = false;
 let _connShowTimer   = null;
 
-function showConnOverlay({ reconnect = false } = {}) {
+let _connSlowTimer = null;
+function showConnOverlay({ reconnect = false, offline = false } = {}) {
   if (!_connOverlay) return;
-  _connOverlay.classList.toggle("is-reconnect", reconnect);
-  if (reconnect) {
+  _connOverlay.classList.toggle("is-reconnect", reconnect || offline);
+  if (offline) {
+    _connTitle.textContent = "You're offline";
+    _connSub.textContent   = "Check your Wi-Fi or mobile data. We'll reconnect automatically.";
+  } else if (reconnect) {
     _connTitle.textContent = "Reconnecting…";
     _connSub.textContent   = "You went offline. Trying to rejoin the game.";
   } else {
@@ -240,17 +244,48 @@ function showConnOverlay({ reconnect = false } = {}) {
     _connSub.textContent   = "First connection can take up to 30 seconds on free hosting. Hang tight!";
   }
   _connOverlay.style.display = "flex";
+
+  // After ~10s of cold-start with no connect yet, swap to a "still waking up"
+  // message so users know it's not frozen (Render free dynos can take 30s).
+  if (_connSlowTimer) { clearTimeout(_connSlowTimer); _connSlowTimer = null; }
+  if (!reconnect && !offline) {
+    _connSlowTimer = setTimeout(() => {
+      if (_hasEverConnected) return;
+      _connTitle.textContent = "Still waking up the server…";
+      _connSub.textContent   = "The free server was asleep. Almost there — thanks for your patience!";
+    }, 10000);
+  }
 }
 function hideConnOverlay() {
   if (!_connOverlay) return;
   _connOverlay.style.display = "none";
+  if (_connSlowTimer) { clearTimeout(_connSlowTimer); _connSlowTimer = null; }
 }
+
+// Device-level offline detection — distinguish "no network" from "server slow".
+window.addEventListener("offline", () => {
+  if (_transportMode === "local") return;
+  showConnOverlay({ offline: true });
+});
+window.addEventListener("online", () => {
+  if (_transportMode === "local") return;
+  // If the socket is already up, just hide; otherwise revert to reconnecting state.
+  if (_realSocket && _realSocket.connected) hideConnOverlay();
+  else showConnOverlay({ reconnect: true });
+});
 
 // On cold start, show the overlay only if the socket hasn't connected within 1.2s
 // (avoids a flash on fast networks). Skipped entirely when bot-mode transport is active.
-_connShowTimer = setTimeout(() => {
-  if (!_hasEverConnected && _transportMode !== "local") showConnOverlay();
-}, 1200);
+// On native (Android APK), show it immediately so the user sees connection feedback
+// instead of the bare Capacitor splash while the cold-start handshake runs.
+const _isNativeApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+if (_isNativeApp) {
+  if (_transportMode !== "local") showConnOverlay();
+} else {
+  _connShowTimer = setTimeout(() => {
+    if (!_hasEverConnected && _transportMode !== "local") showConnOverlay();
+  }, 1200);
+}
 
 _realSocket.on("connect", () => {
   _hasEverConnected = true;
@@ -414,7 +449,49 @@ function setScreen(screen) {
   const friendsScreen = document.getElementById("friendsMenu");
   if (friendsScreen) friendsScreen.style.display = "none";
   document.body.dataset.screen = screen;
+  // Keep the screen awake during a match so the device doesn't dim mid-turn.
+  setKeepAwake(screen === "game");
 }
+
+/* ---------- Keep screen awake during gameplay ---------- */
+// Prefers @capacitor-community/keep-awake when present (native APK), and
+// falls back to the Web Wake Lock API on browsers / older builds. Both are
+// no-ops if unsupported, so this is safe to call unconditionally.
+let _wakeLockSentinel = null;
+let _keepAwakeOn = false;
+async function setKeepAwake(on) {
+  if (on === _keepAwakeOn) return;
+  _keepAwakeOn = on;
+  const KeepAwake = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.KeepAwake;
+  try {
+    if (KeepAwake) {
+      if (on) await KeepAwake.keepAwake();
+      else    await KeepAwake.allowSleep();
+      return;
+    }
+  } catch { /* fall through to Wake Lock */ }
+  try {
+    if (on) {
+      if ("wakeLock" in navigator && !_wakeLockSentinel) {
+        _wakeLockSentinel = await navigator.wakeLock.request("screen");
+        _wakeLockSentinel.addEventListener("release", () => { _wakeLockSentinel = null; });
+      }
+    } else if (_wakeLockSentinel) {
+      await _wakeLockSentinel.release();
+      _wakeLockSentinel = null;
+    }
+  } catch { /* permission/visibility may reject — safe to ignore */ }
+}
+
+// Re-acquire the Wake Lock when the tab/app comes back to the foreground
+// (browsers auto-release it on visibility change).
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && _keepAwakeOn) {
+    const wasOn = _keepAwakeOn;
+    _keepAwakeOn = false;
+    setKeepAwake(wasOn);
+  }
+});
 
 const bgm = new Audio("/sounds/bgm.mp3");
 bgm.loop = true;
@@ -2084,6 +2161,19 @@ socket.on("updateGame", (room) => {
     }
   }
 
+  // Haptic cues on key turn transitions.
+  const prevStackForHaptic = previousRoomSnapshot?.stackCount || 0;
+  const curStackForHaptic  = room.stackCount || 0;
+  const activePlayer = (room.started && room.players) ? room.players[room.turn] : null;
+  const myTurnNow = !!(activePlayer && activePlayer.id === socket.id && !room.awaitingDeckDecision);
+  // (a) +2/+4 stack just grew and I'm the one who has to deal with it.
+  if (myTurnNow && curStackForHaptic > prevStackForHaptic) {
+    haptic("warning");
+  } else if (myTurnNow && lastTurnPlayerId && lastTurnPlayerId !== socket.id) {
+    // (b) My turn just started (previous active player was someone else).
+    haptic("medium");
+  }
+
   // Record who is active on THIS update so the next update knows who played.
   if (room.started && room.players && room.players[room.turn]) {
     lastTurnPlayerId = room.players[room.turn].id;
@@ -2328,41 +2418,48 @@ function getPlayerAnchor(playerId) {
 }
 
 function spawnReactionAt(emoji, anchor) {
-  // Floating emoji
+  // Floating emoji — bigger, longer, with a glow drop-shadow.
   const el = document.createElement("div");
   el.className = "reaction-float";
   el.textContent = emoji;
-  const drift = (Math.random() * 80) - 40;
-  const tilt  = (Math.random() * 30) - 15;
+  const drift = (Math.random() * 120) - 60;
+  const tilt  = (Math.random() * 40) - 20;
   el.style.left = `${anchor.x}px`;
   el.style.top = `${anchor.y}px`;
   el.style.setProperty("--rx", `${drift}px`);
   el.style.setProperty("--rot", `${tilt}deg`);
   document.body.appendChild(el);
-  setTimeout(() => el.remove(), 2200);
+  setTimeout(() => el.remove(), 3000);
 
-  // Burst ring
-  const ring = document.createElement("div");
-  ring.className = "reaction-ring";
-  ring.style.left = `${anchor.x}px`;
-  ring.style.top = `${anchor.y}px`;
-  document.body.appendChild(ring);
-  setTimeout(() => ring.remove(), 700);
+  // Double burst ring — yellow front, white trailing.
+  ["", " reaction-ring--two"].forEach((mod, idx) => {
+    const ring = document.createElement("div");
+    ring.className = `reaction-ring${mod}`;
+    ring.style.left = `${anchor.x}px`;
+    ring.style.top = `${anchor.y}px`;
+    document.body.appendChild(ring);
+    setTimeout(() => ring.remove(), idx === 0 ? 1000 : 1300);
+  });
 
-  // Mini sparkles
-  for (let i = 0; i < 4; i += 1) {
+  // Mini sparkles — 8 around the burst, varying distance and spin direction.
+  const sparkCount = 8;
+  for (let i = 0; i < sparkCount; i += 1) {
     const dot = document.createElement("div");
     dot.className = "reaction-spark";
     dot.textContent = emoji;
-    const angle = (Math.PI * 2 * i) / 4 + Math.random() * 0.6;
-    const dist = 40 + Math.random() * 24;
+    const angle = (Math.PI * 2 * i) / sparkCount + Math.random() * 0.5;
+    const dist = 70 + Math.random() * 50;
     dot.style.left = `${anchor.x}px`;
     dot.style.top = `${anchor.y}px`;
     dot.style.setProperty("--dx", `${Math.cos(angle) * dist}px`);
     dot.style.setProperty("--dy", `${Math.sin(angle) * dist}px`);
+    dot.style.setProperty("--spin", Math.random() < 0.5 ? "-1" : "1");
     document.body.appendChild(dot);
-    setTimeout(() => dot.remove(), 900);
+    setTimeout(() => dot.remove(), 1300);
   }
+
+  // Light haptic on the device that triggered the reaction.
+  haptic("light");
 }
 
 document.addEventListener("click", (e) => {
@@ -2946,7 +3043,7 @@ function handleHardwareBack() {
     if (confirm("Leave the current room?")) leaveRoom();
     return true;
   }
-  // 3. On the landing page → let OS handle (exit app)
+  // 3. On the landing page → ask before exiting the app
   return false;
 }
 
@@ -2955,7 +3052,11 @@ document.addEventListener("DOMContentLoaded", () => {
   if (Cap && Cap.Plugins && Cap.Plugins.App) {
     Cap.Plugins.App.addListener("backButton", () => {
       const handled = handleHardwareBack();
-      if (!handled) Cap.Plugins.App.exitApp();
+      if (!handled) {
+        // On the landing screen the OS back press would silently background the
+        // app — confirm first so users don't lose their place by accident.
+        if (confirm("Exit Last Card Battle?")) Cap.Plugins.App.exitApp();
+      }
     });
   }
 });
