@@ -13,6 +13,9 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "engines": {
+    "node": "20.x"
+  },
   "dependencies": {
     "@capacitor-community/keep-awake": "^5.0.1",
     "@capacitor/haptics": "^6.0.3",
