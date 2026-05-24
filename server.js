@@ -1556,6 +1556,29 @@ io.on("connection", (socket) => {
     io.to(roomCode).emit("reaction", { playerId: socket.id, emoji });
   });
 
+  // Free-text chat: max 30 chars (post-trim), single line, Unicode-safe (Bangla/English).
+  // Per-socket cooldown prevents spam. Broadcast to everyone in the room.
+  let lastChatAt = 0;
+  socket.on("chatMessage", (raw) => {
+    const now = Date.now();
+    if (now - lastChatAt < 1000) return;
+    if (typeof raw !== "string") return;
+    let text = raw.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim();
+    if (!text) return;
+    // Cap to 30 *code points* so multi-byte Bangla characters aren't sliced mid-codepoint.
+    const cps = Array.from(text);
+    if (cps.length > 30) text = cps.slice(0, 30).join("");
+    lastChatAt = now;
+
+    const roomCode = Object.keys(rooms).find((code) =>
+      rooms[code].players.some((p) => p.id === socket.id) ||
+      (rooms[code].spectators && rooms[code].spectators.has(socket.id))
+    );
+    if (!roomCode) return;
+
+    io.to(roomCode).emit("chatMessage", { playerId: socket.id, text });
+  });
+
   socket.on("requestRematch", () => {
     const roomCode = Object.keys(rooms).find((code) =>
       rooms[code].players.some((p) => p.id === socket.id)

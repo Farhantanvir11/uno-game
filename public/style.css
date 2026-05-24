@@ -3474,21 +3474,27 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 
 .reaction-pane {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(300px, 78vw);
+}
+.reaction-pane[hidden] { display: none; }
+
+/* Emoji row inside the Emoji pane */
+.emoji-row {
+  display: flex;
   gap: 4px;
   flex-wrap: wrap;
   justify-content: center;
 }
-.reaction-pane[hidden] { display: none; }
 
-.reaction-pane.msg-pane {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+/* Bottom row in Emoji pane: "No match!" / "Change number!" buttons */
+.msg-extra-row {
+  display: flex;
   gap: 6px;
-  width: min(300px, 78vw);
 }
-.reaction-pane.msg-pane button {
-  width: auto;
-  height: auto;
+.msg-extra-btn {
+  flex: 1;
   padding: 8px 10px;
   font-size: 0.78rem;
   font-family: "Fredoka", "Nunito", system-ui, sans-serif;
@@ -3499,17 +3505,12 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
   border-radius: 10px;
   cursor: pointer;
   transition: transform 120ms ease, background 160ms ease;
-  animation: none;
 }
-.reaction-pane.msg-pane button:hover {
-  background: rgba(255, 213, 79, 0.18);
-  transform: translateY(-1px);
-}
-.reaction-pane.msg-pane button:active { transform: scale(0.96); }
+.msg-extra-btn:hover { background: rgba(255, 213, 79, 0.18); transform: translateY(-1px); }
+.msg-extra-btn:active { transform: scale(0.96); }
 
-/* Color-chip row inside the message pane */
-.reaction-pane.msg-pane .msg-color-row {
-  grid-column: span 2;
+/* Color-chip row (inside Emoji pane) */
+.msg-color-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3568,15 +3569,68 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
   padding: 8px 14px;
   background: #fffaf0;
   color: #1b2a20;
-  font-family: "Fredoka", "Nunito", system-ui, sans-serif;
+  font-family: "Fredoka", "Nunito", "Noto Sans Bengali", system-ui, sans-serif;
   font-weight: 700;
   font-size: 0.88rem;
   border-radius: 16px;
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
   pointer-events: none;
   white-space: nowrap;
+  max-width: min(72vw, 280px);
+  overflow: hidden;
+  text-overflow: ellipsis;
   animation: quickMsgIn 2.4s ease-out forwards;
 }
+/* Custom chat bubble lasts a touch longer than presets and remains styled identically. */
+.quick-msg-bubble.chat-bubble {
+  animation: quickMsgIn 3.2s ease-out forwards;
+}
+
+/* Chat tab — text input form */
+.reaction-pane.chat-pane {
+  width: min(300px, 78vw);
+  display: flex;
+  flex-direction: column;
+}
+.reaction-pane.chat-pane[hidden] { display: none; }
+.chat-form {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+  width: 100%;
+}
+.chat-input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  font-size: 0.9rem;
+  font-family: "Fredoka", "Nunito", "Noto Sans Bengali", system-ui, sans-serif;
+  color: #f4f8f1;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 213, 79, 0.28);
+  border-radius: 10px;
+  outline: none;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.chat-input::placeholder { color: rgba(255, 255, 255, 0.45); }
+.chat-input:focus {
+  border-color: rgba(255, 213, 79, 0.7);
+  background: rgba(255, 255, 255, 0.12);
+}
+.chat-send {
+  padding: 0 14px;
+  font-family: "Fredoka", "Nunito", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #1b2a20;
+  background: #ffd54f;
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 140ms ease, background 140ms ease;
+}
+.chat-send:hover  { background: #ffe27a; }
+.chat-send:active { transform: scale(0.94); }
 .quick-msg-bubble::after {
   content: "";
   position: absolute;
@@ -3602,7 +3656,7 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
   100% { opacity: 1; transform: scale(1) translateY(0); }
 }
 
-.reaction-pane:not(.msg-pane) button {
+.emoji-row button {
   width: 44px;
   height: 44px;
   padding: 0 0 2px;             /* nudge emoji glyph upward 2px to true-center */
@@ -3620,24 +3674,24 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 }
 
 /* Stagger entrance for each emoji */
-.reaction-pane:not(.msg-pane) button:nth-child(1) { animation-delay: 40ms;  }
-.reaction-pane:not(.msg-pane) button:nth-child(2) { animation-delay: 90ms;  }
-.reaction-pane:not(.msg-pane) button:nth-child(3) { animation-delay: 140ms; }
-.reaction-pane:not(.msg-pane) button:nth-child(4) { animation-delay: 190ms; }
-.reaction-pane:not(.msg-pane) button:nth-child(5) { animation-delay: 240ms; }
-.reaction-pane:not(.msg-pane) button:nth-child(6) { animation-delay: 290ms; }
+.emoji-row button:nth-child(1) { animation-delay: 40ms;  }
+.emoji-row button:nth-child(2) { animation-delay: 90ms;  }
+.emoji-row button:nth-child(3) { animation-delay: 140ms; }
+.emoji-row button:nth-child(4) { animation-delay: 190ms; }
+.emoji-row button:nth-child(5) { animation-delay: 240ms; }
+.emoji-row button:nth-child(6) { animation-delay: 290ms; }
 
 @keyframes emojiIn {
   0%   { opacity: 0; transform: translateY(10px) scale(0.4); }
   100% { opacity: 1; transform: translateY(0)    scale(1);   }
 }
 
-.reaction-pane:not(.msg-pane) button:hover {
+.emoji-row button:hover {
   transform: scale(1.35) rotate(-6deg);
   background: rgba(255, 213, 79, 0.18);
 }
 
-.reaction-pane:not(.msg-pane) button:active {
+.emoji-row button:active {
   transform: scale(0.92);
 }
 
@@ -3717,7 +3771,7 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 @media (max-width: 480px) {
   .reaction-dock { right: 10px; bottom: 10px; }
   .reaction-toggle { width: 42px; height: 42px; font-size: 1.25rem; }
-  .reaction-pane:not(.msg-pane) button { width: 44px; height: 44px; font-size: 1.25rem; }
+  .emoji-row button { width: 44px; height: 44px; font-size: 1.25rem; }
   .reaction-float { font-size: 3.5rem; }
   .reaction-spark { font-size: 1.2rem; }
 }

@@ -2365,7 +2365,56 @@ function switchReactionTab(tab) {
   pop.querySelectorAll(".reaction-pane").forEach((pane) => {
     pane.hidden = pane.dataset.pane !== tab;
   });
+  // Auto-focus chat input when Chat tab opens so the mobile keyboard appears
+  // immediately and the player can start typing without an extra tap.
+  if (tab === "msg") {
+    const input = document.getElementById("chatInput");
+    if (input) {
+      // Slight delay lets the pane unhide before focus (iOS/Android quirk).
+      setTimeout(() => { try { input.focus({ preventScroll: true }); } catch (_) { input.focus(); } }, 30);
+    }
+  }
 }
+
+let _lastChatSentAt = 0;
+function sendChatMessage(event) {
+  if (event) event.preventDefault();
+  const input = document.getElementById("chatInput");
+  if (!input) return;
+  // Strip newlines, collapse whitespace, trim — keep Unicode (Bangla, etc.).
+  let text = String(input.value || "").replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!text) return;
+  if (text.length > 30) text = text.slice(0, 30);
+
+  // Local cooldown — server also enforces but this prevents spam clicks.
+  const now = Date.now();
+  if (now - _lastChatSentAt < 1200) return;
+  _lastChatSentAt = now;
+
+  socket.emit("chatMessage", text);
+  // Instant local feedback above own avatar.
+  spawnChatBubbleAt(text, getOwnAnchor());
+  input.value = "";
+  // Keep the popover open + input focused so player can keep chatting.
+  try { input.focus({ preventScroll: true }); } catch (_) { input.focus(); }
+}
+
+function spawnChatBubbleAt(text, anchor) {
+  if (!text) return;
+  const el = document.createElement("div");
+  el.className = "quick-msg-bubble chat-bubble";
+  el.textContent = text;
+  el.style.left = `${anchor.x}px`;
+  el.style.top  = `${anchor.y}px`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+socket.on("chatMessage", ({ playerId, text }) => {
+  if (!text) return;
+  if (playerId === socket.id) return; // already shown locally
+  spawnChatBubbleAt(text, getPlayerAnchor(playerId));
+});
 
 // Mirror of the server's QUICK_MESSAGES payloads — kept in sync for instant local feedback.
 const QUICK_MSG_PAYLOADS = [

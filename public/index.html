@@ -481,14 +481,14 @@
       <button type="button" class="reaction-tab" data-tab="msg" onclick="switchReactionTab('msg')">Chat</button>
     </div>
     <div class="reaction-pane" data-pane="emoji">
-      <button type="button" onclick="sendReaction('❤️')">❤️</button>
-      <button type="button" onclick="sendReaction('🔥')">🔥</button>
-      <button type="button" onclick="sendReaction('😂')">😂</button>
-      <button type="button" onclick="sendReaction('👍')">👍</button>
-      <button type="button" onclick="sendReaction('😱')">😱</button>
-      <button type="button" onclick="sendReaction('😭')">😭</button>
-    </div>
-    <div class="reaction-pane msg-pane" data-pane="msg" hidden>
+      <div class="emoji-row">
+        <button type="button" onclick="sendReaction('❤️')">❤️</button>
+        <button type="button" onclick="sendReaction('🔥')">🔥</button>
+        <button type="button" onclick="sendReaction('😂')">😂</button>
+        <button type="button" onclick="sendReaction('👍')">👍</button>
+        <button type="button" onclick="sendReaction('😱')">😱</button>
+        <button type="button" onclick="sendReaction('😭')">😭</button>
+      </div>
       <div class="msg-color-row" role="group" aria-label="Play a color">
         <span class="msg-color-label">Play color</span>
         <span class="msg-color-chips">
@@ -525,8 +525,19 @@
           <span class="color-chip blue"   onclick="sendQuickMsg(15)" title="Reverse Blue"></span>
         </span>
       </div>
-      <button type="button" onclick="sendQuickMsg(16)">No match!</button>
-      <button type="button" onclick="sendQuickMsg(17)">Change number!</button>
+      <div class="msg-extra-row">
+        <button type="button" class="msg-extra-btn" onclick="sendQuickMsg(16)">No match!</button>
+        <button type="button" class="msg-extra-btn" onclick="sendQuickMsg(17)">Change number!</button>
+      </div>
+    </div>
+    <div class="reaction-pane chat-pane" data-pane="msg" hidden>
+      <form class="chat-form" onsubmit="sendChatMessage(event)" autocomplete="off">
+        <input id="chatInput" class="chat-input" type="text"
+               maxlength="30" inputmode="text" autocomplete="off"
+               autocapitalize="sentences" spellcheck="false"
+               placeholder="Type a message..." aria-label="Chat message" />
+        <button type="submit" class="chat-send" aria-label="Send">Send</button>
+      </form>
     </div>
   </div>
 
