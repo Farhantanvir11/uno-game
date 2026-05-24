@@ -1109,6 +1109,13 @@ function startTurnTimer(turnEndsAt) {
   lastTickSecond = -1;
   stopSound("timerTick");
 
+  // TEMP DIAGNOSTIC: log turn timer transitions so we can root-cause the
+  // "timer stuck at 0 after reshuffle" report. Remove once verified.
+  try {
+    const delta = turnEndsAt ? (turnEndsAt - Date.now()) : null;
+    console.log("[timer] startTurnTimer", { turnEndsAt, deltaMs: delta, now: Date.now() });
+  } catch (_) {}
+
   if (!turnEndsAt) {
     timerLabel.innerText = "Time: -";
     return;
@@ -1922,7 +1929,12 @@ function announceCardEffect(room) {
   const top = room.discard[room.discard.length - 1];
   if (!top) return;
   const len = room.discard.length;
-  if (len <= lastAnnouncedDiscardLen) return; // only on genuinely new plays
+  const prevLen = previousRoomSnapshot?.discard?.length ?? 0;
+  // Only announce when a new card was actually pushed onto discard this update.
+  // Comparing to the previous snapshot (instead of a running max) avoids getting
+  // stuck after a reshuffle, where `discard` shrinks back down to 1.
+  if (len <= prevLen) return;
+  if (len === lastAnnouncedDiscardLen) return;
   lastAnnouncedDiscardLen = len;
   if (!["reverse", "skip", "+2", "+4", "wild"].includes(top.value)) return;
   playSound("power");
