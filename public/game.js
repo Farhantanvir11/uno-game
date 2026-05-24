@@ -1929,13 +1929,14 @@ function announceCardEffect(room) {
   const top = room.discard[room.discard.length - 1];
   if (!top) return;
   const len = room.discard.length;
-  const prevLen = previousRoomSnapshot?.discard?.length ?? 0;
-  // Only announce when a new card was actually pushed onto discard this update.
-  // Comparing to the previous snapshot (instead of a running max) avoids getting
-  // stuck after a reshuffle, where `discard` shrinks back down to 1.
-  if (len <= prevLen) return;
-  if (len === lastAnnouncedDiscardLen) return;
+  // We track the previous length as a primitive number (not via
+  // previousRoomSnapshot.discard.length) because in local/solo mode the
+  // engine reuses the same `discard` array reference between updates, so
+  // the "previous" snapshot would always reflect the current length.
+  const prevLen = lastAnnouncedDiscardLen;
   lastAnnouncedDiscardLen = len;
+  // Reshuffle path: discard shrinks back to 1 — don't announce, just resync.
+  if (len <= prevLen) return;
   if (!["reverse", "skip", "+2", "+4", "wild"].includes(top.value)) return;
   playSound("power");
   showPowerCardEffect(top);
