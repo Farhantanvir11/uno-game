@@ -6,7 +6,7 @@
   "use strict";
   const E = global.LCB_Engine;
 
-  const TURN_DURATION_MS = 15000;
+  const TURN_DURATION_MS = 20000;
 
   function generateRoomCode() {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";

@@ -1868,7 +1868,7 @@ function updateActiveTimerRing() {
     activeAvatar.style.strokeDashoffset = "0";
     return;
   }
-  const total = currentRoom?.turnDuration || 15000;
+  const total = currentRoom?.turnDuration || 20000;
   const remaining = Math.max(0, endsAt - Date.now());
   const progress = Math.min(1, remaining / total);
   // pathLength=100 → full ring when progress=1, empty when 0

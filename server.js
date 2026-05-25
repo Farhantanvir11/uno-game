@@ -11,7 +11,7 @@ const io = new Server(httpServer);
 app.use(express.static("public"));
 
 const PORT = Number.parseInt(process.env.PORT, 10) || 3000;
-const TURN_DURATION_MS = 15000;
+const TURN_DURATION_MS = 20000;
 const LAST_CARD_BONUS_MS = 60000; // Once per UNO call, the NEXT player gets 60s to plan a counter.
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 5;
