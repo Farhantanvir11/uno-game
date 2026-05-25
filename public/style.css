@@ -3588,7 +3588,7 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 
 /* Chat tab — text input form */
 .reaction-pane.chat-pane {
-  width: min(300px, 78vw);
+  width: min(360px, 86vw);
   display: flex;
   flex-direction: column;
 }
@@ -3603,10 +3603,12 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
   flex: 1 1 75%;
   width: 75%;
   min-width: 0;
-  padding: 11px 12px;
-  font-size: 0.95rem;
+  padding: 12px 14px;
+  font-size: 16px; /* >=16px prevents iOS Safari from zooming on focus */
+  line-height: 1.35;
   font-family: "Fredoka", "Nunito", "Noto Sans Bengali", system-ui, sans-serif;
   color: #f4f8f1;
+  caret-color: #ffd54f;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 213, 79, 0.28);
   border-radius: 10px;
