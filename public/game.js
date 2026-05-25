@@ -2,7 +2,9 @@
    Wraps Socket.IO so bot matches can run fully offline via LCB_LocalGame.
    `socket` is a stable reference whose .emit/.on/.id route to either the
    real cloud server or a local in-browser game runner. */
-const _realSocket = io({ autoConnect: true, reconnection: true });
+// Battery: force WebSocket only — skips the HTTP long-polling fallback that
+// runs on a timer and wakes the cellular radio more often than needed.
+const _realSocket = io({ autoConnect: true, reconnection: true, transports: ["websocket"], upgrade: false });
 const _busListeners = Object.create(null);
 
 function _busOn(event, handler) {
@@ -486,10 +488,34 @@ async function setKeepAwake(on) {
 // Re-acquire the Wake Lock when the tab/app comes back to the foreground
 // (browsers auto-release it on visibility change).
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && _keepAwakeOn) {
-    const wasOn = _keepAwakeOn;
-    _keepAwakeOn = false;
-    setKeepAwake(wasOn);
+  // Battery: tag the body so CSS can pause every infinite decorative animation
+  // while the app is backgrounded. See `body.is-hidden` rules in style.css.
+  document.body.classList.toggle("is-hidden", document.visibilityState !== "visible");
+
+  if (document.visibilityState === "visible") {
+    if (_keepAwakeOn) {
+      const wasOn = _keepAwakeOn;
+      _keepAwakeOn = false;
+      setKeepAwake(wasOn);
+    }
+    // Catch the timer up immediately so the label/ring don't look stale.
+    try { updateActiveTimerRing(); } catch (_) {}
+    // Battery: reconnect the cloud socket if we let it sleep while in menu.
+    try {
+      if (_transportMode !== "local" && _realSocket && !_realSocket.connected) {
+        _realSocket.connect();
+      }
+    } catch (_) {}
+  } else {
+    // Battery: while backgrounded AND outside a match, drop the socket so the
+    // OS can park the radio. Active matches keep the connection so we don't
+    // lose our seat / desync state.
+    try {
+      const inMatch = !!(currentRoom && currentRoom.started);
+      if (!inMatch && _transportMode !== "local" && _realSocket && _realSocket.connected) {
+        _realSocket.disconnect();
+      }
+    } catch (_) {}
   }
 });
 
@@ -1137,7 +1163,13 @@ function startTurnTimer(turnEndsAt) {
   };
 
   renderTime();
-  timerInterval = setInterval(renderTime, 80);
+  // Battery: 250ms is enough — the visible label only changes once per second
+  // and the SVG ring animates smoothly via stroke-dashoffset interpolation.
+  // Skip ticks while the app is backgrounded; we'll re-tick on visibilitychange.
+  timerInterval = setInterval(() => {
+    if (document.visibilityState !== "visible") return;
+    renderTime();
+  }, 250);
 }
 
 function playCard(card, sourceEl) {

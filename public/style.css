@@ -1123,8 +1123,23 @@ body:not([data-screen="game"]) #powerEffect {
   50%      { box-shadow: 0 0 0 8px rgba(231, 76, 60, 0); }
 }
 
+/* Battery: animate only `opacity` on a pseudo-element ring instead of
+   re-rasterizing `box-shadow` every frame. Static base shadow stays on the
+   avatar; the ::before adds the breathing yellow halo via compositor only. */
 .player.active .player-avatar {
+  position: relative;
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.22), 0 10px 24px rgba(0, 0, 0, 0.4);
+}
+.player.active .player-avatar::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+  box-shadow: 0 0 0 6px rgba(255, 213, 79, 0.55);
+  opacity: 0;
+  pointer-events: none;
   animation: activePulse 1.4s ease-in-out infinite;
+  will-change: opacity;
 }
 
 /* Next-up indicator: subtle teal halo + small "Next" pill above the avatar */
@@ -1159,8 +1174,8 @@ body:not([data-screen="game"]) #powerEffect {
 }
 
 @keyframes activePulse {
-  0%, 100% { box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.18), 0 10px 24px rgba(0, 0, 0, 0.4), 0 0 0 0 rgba(255, 213, 79, 0.6); }
-  50%      { box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.3),  0 10px 24px rgba(0, 0, 0, 0.4), 0 0 0 8px rgba(255, 213, 79, 0.0); }
+  0%, 100% { opacity: 0;   transform: scale(1);    }
+  50%      { opacity: 0.9; transform: scale(1.06); }
 }
 
 /* -------- Big power-card animations (center of screen) -------- */
@@ -1386,12 +1401,25 @@ body:not([data-screen="game"]) #powerEffect {
 }
 
 /* Last-card aura: golden glow around the lone card in your hand. */
+/* Battery: cheap GPU pulse via pseudo-element opacity. */
 #hand.is-last-card > .card {
+  position: relative;
+  box-shadow: 0 0 0 2px rgba(255, 213, 79, 0.55), 0 6px 16px rgba(0,0,0,0.4);
+}
+#hand.is-last-card > .card::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  box-shadow: 0 0 0 3px rgba(255, 235, 130, 0.85), 0 0 28px rgba(255, 213, 79, 0.85);
+  opacity: 0;
+  pointer-events: none;
   animation: lastCardAura 1.6s ease-in-out infinite;
+  will-change: opacity;
 }
 @keyframes lastCardAura {
-  0%, 100% { box-shadow: 0 0 0 2px rgba(255, 213, 79, 0.55), 0 6px 16px rgba(0,0,0,0.4), 0 0 18px rgba(255, 213, 79, 0.45); }
-  50%      { box-shadow: 0 0 0 3px rgba(255, 235, 130, 0.85), 0 6px 18px rgba(0,0,0,0.5), 0 0 32px rgba(255, 213, 79, 0.85); }
+  0%, 100% { opacity: 0;   }
+  50%      { opacity: 1;   }
 }
 
 .card {
@@ -4561,10 +4589,23 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 }
 .hud-icon-btn svg { width: 18px; height: 18px; }
 
-.deck-pile.is-drawable { cursor: pointer; animation: deckPulse 1.6s ease-in-out infinite; }
+/* Battery: animate ::before opacity instead of `filter: drop-shadow` (which
+   forces a full repaint every frame on mobile GPUs). */
+.deck-pile.is-drawable { cursor: pointer; position: relative; }
+.deck-pile.is-drawable::before {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border-radius: 18px;
+  box-shadow: 0 0 22px 4px rgba(255, 210, 74, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  animation: deckPulse 1.6s ease-in-out infinite;
+  will-change: opacity;
+}
 @keyframes deckPulse {
-  0%, 100% { filter: drop-shadow(0 0 0 rgba(255,210,74,0)); }
-  50%      { filter: drop-shadow(0 0 14px rgba(255,210,74,.55)); }
+  0%, 100% { opacity: 0; }
+  50%      { opacity: 1; }
 }
 
 .tut-deck-demo {
@@ -4593,7 +4634,11 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
   font-family: "Fredoka", sans-serif;
   font-weight: 800;
   font-size: 32px;
-  animation: deckPulse 1.6s ease-in-out infinite;
+  animation: tutDeckGlow 1.6s ease-in-out infinite;
+}
+@keyframes tutDeckGlow {
+  0%, 100% { filter: drop-shadow(0 0 0 rgba(255,210,74,0)); }
+  50%      { filter: drop-shadow(0 0 14px rgba(255,210,74,.55)); }
 }
 
 @media (max-width: 480px) {
@@ -4795,4 +4840,39 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
   font-size: 0.75rem;
   color: rgba(241,245,255,0.5);
   text-align: center;
+}
+
+/* ============================================================
+   Battery savers (zero gameplay impact)
+   ============================================================ */
+
+/* When the app is backgrounded (tab hidden / Android app minimized),
+   pause every CSS animation so the GPU compositor stops doing work.
+   Re-enables instantly on visibilitychange. */
+body.is-hidden *,
+body.is-hidden *::before,
+body.is-hidden *::after {
+  animation-play-state: paused !important;
+}
+
+/* Honor the user's OS-level "reduce motion" / battery saver preference:
+   disable purely decorative infinite animations, keep gameplay-relevant
+   pulses (active player, deck-drawable, last-card aura, deck count low,
+   challenge prompt, UNO button) so the game still communicates state. */
+@media (prefers-reduced-motion: reduce) {
+  .login-logo,
+  .hero-img,
+  #topCard.has-top::before,        /* topHaloBreathe */
+  .winner-trophy,
+  .winner-rays,
+  .winner-confetti span,
+  .music-toggle .music-icon,
+  .emoji-fab,
+  .reaction-toggle,
+  .cta-shine,
+  .tut-trophy,
+  .hint-pulse,
+  .hint-label {
+    animation: none !important;
+  }
 }
