@@ -3600,10 +3600,11 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
   width: 100%;
 }
 .chat-input {
-  flex: 1;
+  flex: 1 1 75%;
+  width: 75%;
   min-width: 0;
-  padding: 9px 12px;
-  font-size: 0.9rem;
+  padding: 11px 12px;
+  font-size: 0.95rem;
   font-family: "Fredoka", "Nunito", "Noto Sans Bengali", system-ui, sans-serif;
   color: #f4f8f1;
   background: rgba(255, 255, 255, 0.08);
@@ -3611,6 +3612,11 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
   border-radius: 10px;
   outline: none;
   transition: border-color 140ms ease, background 140ms ease;
+  /* Force left-to-right typing on mobile; prevent auto-RTL/word reversal. */
+  direction: ltr;
+  unicode-bidi: plaintext;
+  text-align: left;
+  writing-mode: horizontal-tb;
 }
 .chat-input::placeholder { color: rgba(255, 255, 255, 0.45); }
 .chat-input:focus {
@@ -3618,7 +3624,11 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
   background: rgba(255, 255, 255, 0.12);
 }
 .chat-send {
-  padding: 0 14px;
+  flex: 0 0 auto;
+  width: 25%;
+  max-width: 80px;
+  min-width: 56px;
+  padding: 0 10px;
   font-family: "Fredoka", "Nunito", system-ui, sans-serif;
   font-weight: 700;
   font-size: 0.85rem;
