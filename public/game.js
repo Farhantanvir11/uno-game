@@ -1892,6 +1892,14 @@ socket.on("playerDropped", ({ playerName }) => {
   if (playerName) showToast(`${playerName} disconnected`, 1400);
 });
 
+socket.on("playerReplacedByAI", ({ playerName }) => {
+  if (playerName) showToast(`${playerName} was replaced by AI`, 1800);
+});
+
+socket.on("playerReclaimedSeat", ({ playerName }) => {
+  if (playerName) showToast(`${playerName} reconnected`, 1600);
+});
+
 function updateActiveTimerRing() {
   const activeAvatar = playersElement.querySelector(".player.active .timer-ring .progress");
   if (!activeAvatar) return;

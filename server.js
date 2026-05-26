@@ -1449,6 +1449,34 @@ io.on("connection", (socket) => {
       // If they reconnected meanwhile, the timer was cleared. Defensive recheck:
       const stillThere = r.players.find((p) => p.token === lostTokenId);
       if (!stillThere || !stillThere.disconnected) return;
+
+      // In-progress game: convert the dropped seat to an AI bot so the match
+      // continues smoothly. The original player can still reclaim the seat
+      // by resuming with their session token (see `resumeSession`).
+      if (r.started) {
+        stillThere.isBot = true;
+        stillThere.wasHuman = true;
+        stillThere.difficulty = stillThere.difficulty || "normal";
+        stillThere.disconnected = false;
+        stillThere.disconnectTimer = null;
+        stillThere.originalName = stillThere.originalName || stillThere.name;
+        stillThere.name = `${stillThere.originalName} (AI)`;
+
+        io.to(code).emit("playerReplacedByAI", {
+          playerName: stillThere.originalName,
+          name: stillThere.originalName
+        });
+
+        // If it's currently this player's turn, drop the auto-draw turn timer
+        // and let the bot scheduler take over.
+        if (r.players[r.turn] && r.players[r.turn].token === lostTokenId) {
+          stopTurnTimer(r);
+          queueBotTurnIfNeeded(code);
+        }
+        emitGameState(code);
+        return;
+      }
+
       removePlayerFromRoom(stillThere.id);
     }, grace);
 
@@ -1474,6 +1502,25 @@ io.on("connection", (socket) => {
     if (player.disconnectTimer) {
       clearTimeout(player.disconnectTimer);
       player.disconnectTimer = null;
+    }
+
+    // If the grace window already expired and the seat was converted to an AI
+    // bot, hand control back to the returning human player.
+    if (player.isBot && player.wasHuman) {
+      const wasBotsTurn =
+        room.players[room.turn] && room.players[room.turn].token === token;
+      player.isBot = false;
+      if (player.originalName) {
+        player.name = player.originalName;
+      }
+      if (wasBotsTurn) {
+        stopBotTurn(room);
+        scheduleTurn(code);
+      }
+      io.to(code).emit("playerReclaimedSeat", {
+        playerName: player.name,
+        name: player.name
+      });
     }
 
     // If this player was the host, repoint hostId to the new socket id —
