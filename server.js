@@ -825,7 +825,19 @@ function removePlayerFromRoom(socketId) {
   }
 
   if (room.hostId === socketId) {
-    room.hostId = room.players[0].id;
+    // Prefer a connected human; fall back to any player only if none exist.
+    const newHost =
+      room.players.find((p) => !p.isBot && !p.disconnected) ||
+      room.players.find((p) => !p.isBot) ||
+      room.players[0];
+    room.hostId = newHost.id;
+    if (!newHost.isBot) {
+      io.to(roomCode).emit("hostChanged", {
+        hostId: newHost.id,
+        name: newHost.name,
+        playerName: newHost.name
+      });
+    }
   }
 
   if (room.started) {
