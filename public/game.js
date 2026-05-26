@@ -1900,6 +1900,10 @@ socket.on("playerReclaimedSeat", ({ playerName }) => {
   if (playerName) showToast(`${playerName} reconnected`, 1600);
 });
 
+socket.on("hostChanged", ({ playerName }) => {
+  if (playerName) showToast(`${playerName} is now host`, 1600);
+});
+
 function updateActiveTimerRing() {
   const activeAvatar = playersElement.querySelector(".player.active .timer-ring .progress");
   if (!activeAvatar) return;

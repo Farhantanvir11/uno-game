@@ -1441,6 +1441,23 @@ io.on("connection", (socket) => {
     player.disconnected = true;
     if (player.disconnectTimer) clearTimeout(player.disconnectTimer);
 
+    // If the host dropped, transfer the crown immediately to a connected human
+    // so host-only flows (deck-decision resolve, lobby rules, rematch start)
+    // don't stall during the grace window or after AI takeover.
+    if (room.hostId === player.id) {
+      const newHost = room.players.find(
+        (p) => p.id !== player.id && !p.isBot && !p.disconnected
+      );
+      if (newHost) {
+        room.hostId = newHost.id;
+        io.to(code).emit("hostChanged", {
+          hostId: newHost.id,
+          name: newHost.name,
+          playerName: newHost.name
+        });
+      }
+    }
+
     const grace = room.started ? RECONNECT_GRACE_MS : LOBBY_GRACE_MS;
     const lostTokenId = player.token; // capture before any reassignment
     player.disconnectTimer = setTimeout(() => {
