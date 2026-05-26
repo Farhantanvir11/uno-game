@@ -262,11 +262,12 @@
               emit("invalidMove", "Stack a +2/+4 or accept the penalty.");
               return;
             }
-            // Illegal: draw 1 penalty, KEEP the same player's turn (parity with server).
+            // Illegal play: draw 1 penalty AND end the turn so the player
+            // cannot keep trying cards until one is playable (parity with server).
             emit("invalidMove", "That card cannot be played right now.");
             E.drawCards(room, player, 1);
             emit("penalty");
-            emitGame();
+            advanceAndSchedule(1);
             return;
           }
           // Cannot finish the game with a power card (parity with server line 1138).

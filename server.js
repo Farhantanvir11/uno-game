@@ -1201,17 +1201,20 @@ io.on("connection", (socket) => {
       }
 
       if (drawResult.needsDeckDecision) {
+        // Advance turn after the deck-reshuffle decision resolves so the
+        // misplaying player cannot keep trying cards until one is playable.
         requestDeckDecision(roomCode, {
           playerId: player.id,
           remainingDraws: drawResult.remainingCount,
-          advanceSteps: 0,
+          advanceSteps: 1,
           clearStackOnResume: false,
           showPenalty: false
         });
         return;
       }
 
-      emitGameState(roomCode);
+      // Penalty for an illegal play: take the draw AND lose the turn.
+      advanceToNextTurn(roomCode);
       return;
     }
 
