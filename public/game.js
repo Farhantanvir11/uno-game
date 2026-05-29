@@ -750,6 +750,20 @@ socket.on("spectateOffered", ({ roomCode: code, reason }) => {
   socket.emit("joinAsSpectator", { roomCode: code });
 });
 
+socket.on("reconnectOffered", ({ roomCode: code, canRejoin }) => {
+  if (canRejoin) {
+    const choice = confirm("That match is already in progress.\n\nPress OK to rejoin as a player, or Cancel to spectate.");
+    if (choice) {
+      socket.emit("reclaimSeat", { roomCode: code, playerName: getNameValue() });
+    } else {
+      socket.emit("joinAsSpectator", { roomCode: code });
+    }
+  } else {
+    if (!confirm("That match is already in progress.\n\nJoin as spectator?")) return;
+    socket.emit("joinAsSpectator", { roomCode: code });
+  }
+});
+
 socket.on("spectatorJoined", (code) => {
   isSpectator = true;
   roomCode = code;

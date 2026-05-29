@@ -1007,8 +1007,23 @@ io.on("connection", (socket) => {
       return;
     }
 
+    // If the game is in progress, check if this player has a disconnected or
+    // AI-converted seat they can reclaim — if so, offer both rejoin & spectate.
     if (room.started) {
-      socket.emit("spectateOffered", { roomCode: normalizedCode, reason: "started" });
+      const joiningUserId = (socket.data && socket.data.userId) || null;
+      const joiningName = dbApi.sanitizeName(playerName);
+      const reclaimable = room.players.find((p) =>
+        (p.disconnected || (p.isBot && p.wasHuman)) &&
+        (joiningUserId && p.userId === joiningUserId || joiningName && p.originalName === joiningName || joiningName && p.name === joiningName)
+      );
+
+      if (reclaimable) {
+        // Offer the player a choice: rejoin their seat OR spectate.
+        socket.emit("reconnectOffered", { roomCode: normalizedCode, canRejoin: true });
+        return;
+      }
+
+      socket.emit("reconnectOffered", { roomCode: normalizedCode, canRejoin: false });
       return;
     }
 
@@ -1697,6 +1712,72 @@ io.on("connection", (socket) => {
     if (room.started) {
       socket.emit("updateGame", getSafeRoom(code));
     }
+  });
+
+  socket.on("reclaimSeat", ({ roomCode, playerName } = {}) => {
+    const code = (roomCode || "").trim().toUpperCase();
+    const room = rooms[code];
+    if (!room || !room.started) {
+      sendError(socket, "Room not found or game not in progress.");
+      return;
+    }
+
+    const joiningUserId = (socket.data && socket.data.userId) || null;
+    const joiningName = dbApi.sanitizeName(playerName);
+    const reclaimable = room.players.find((p) =>
+      (p.disconnected || (p.isBot && p.wasHuman)) &&
+      (joiningUserId && p.userId === joiningUserId || joiningName && p.originalName === joiningName || joiningName && p.name === joiningName)
+    );
+
+    if (!reclaimable) {
+      sendError(socket, "No reclaimable seat found. Join as spectator instead.");
+      return;
+    }
+
+    // Clear any grace timer still running.
+    if (reclaimable.disconnectTimer) {
+      clearTimeout(reclaimable.disconnectTimer);
+      reclaimable.disconnectTimer = null;
+    }
+
+    // If the seat was converted to AI, revert it back to human.
+    if (reclaimable.isBot && reclaimable.wasHuman) {
+      const wasBotsTurn =
+        room.players[room.turn] && room.players[room.turn].token === reclaimable.token;
+      reclaimable.isBot = false;
+      delete reclaimable.wasHuman;
+      if (reclaimable.originalName) {
+        reclaimable.name = reclaimable.originalName;
+        delete reclaimable.originalName;
+      }
+      if (wasBotsTurn) {
+        stopBotTurn(room);
+        scheduleTurn(code);
+      }
+    }
+
+    // Notify the room that the player has reclaimed their seat.
+    io.to(code).emit("playerReclaimedSeat", {
+      playerName: reclaimable.name,
+      name: reclaimable.name
+    });
+
+    // Re-point the seat to the new socket.
+    const wasHost = room.hostId === reclaimable.id;
+    reclaimable.id = socket.id;
+    if (wasHost) room.hostId = socket.id;
+    reclaimable.disconnected = false;
+    if (reclaimable.userId) socket.data.userId = reclaimable.userId;
+
+    socket.join(code);
+    touchRoom(room);
+    socket.emit("session", { token: reclaimable.token, roomCode: code });
+    socket.emit("joinedRoom", code);
+
+    // Replay game state so the client renders the in-game view.
+    socket.emit("gameStarted");
+    io.to(socket.id).emit("yourCards", reclaimable.cards);
+    emitGameState(code);
   });
 
   socket.on("leaveRoom", () => {
