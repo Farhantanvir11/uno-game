@@ -796,6 +796,51 @@ function removeSpectator(socketId) {
   });
 }
 
+function assignHostIfNeeded(roomCode, previousHostId) {
+  const room = rooms[roomCode];
+  if (!room || room.hostId !== previousHostId) {
+    return;
+  }
+
+  const newHost =
+    room.players.find((p) => !p.isBot && !p.disconnected) ||
+    room.players.find((p) => !p.isBot) ||
+    room.players[0];
+
+  if (!newHost) {
+    return;
+  }
+
+  room.hostId = newHost.id;
+  if (!newHost.isBot) {
+    io.to(roomCode).emit("hostChanged", {
+      hostId: newHost.id,
+      name: newHost.name,
+      playerName: newHost.name
+    });
+  }
+}
+
+function attachUserIdToActiveSeats(socket, userId) {
+  if (!socket || !socket.id || !userId) {
+    return;
+  }
+
+  Object.keys(rooms).forEach((code) => {
+    const room = rooms[code];
+    if (!room) {
+      return;
+    }
+
+    const player = room.players.find((p) => p.id === socket.id && !p.isBot);
+    if (!player || player.userId === userId) {
+      return;
+    }
+
+    player.userId = userId;
+  });
+}
+
 function removePlayerFromRoom(socketId) {
   const roomCode = Object.keys(rooms).find((code) =>
     rooms[code].players.some((player) => player.id === socketId)
@@ -827,21 +872,7 @@ function removePlayerFromRoom(socketId) {
     return;
   }
 
-  if (room.hostId === socketId) {
-    // Prefer a connected human; fall back to any player only if none exist.
-    const newHost =
-      room.players.find((p) => !p.isBot && !p.disconnected) ||
-      room.players.find((p) => !p.isBot) ||
-      room.players[0];
-    room.hostId = newHost.id;
-    if (!newHost.isBot) {
-      io.to(roomCode).emit("hostChanged", {
-        hostId: newHost.id,
-        name: newHost.name,
-        playerName: newHost.name
-      });
-    }
-  }
+  assignHostIfNeeded(roomCode, socketId);
 
   if (room.started) {
     if (index < room.turn) {
@@ -890,6 +921,7 @@ io.on("connection", (socket) => {
         }
       }
       socket.data.userId = final.id;
+      attachUserIdToActiveSeats(socket, final.id);
       socket.emit("loggedIn", {
         userId: final.id,
         name: final.name,
@@ -1471,25 +1503,9 @@ io.on("connection", (socket) => {
     player.disconnected = true;
     if (player.disconnectTimer) clearTimeout(player.disconnectTimer);
 
-    // If the host dropped, transfer the crown immediately to a connected human
-    // so host-only flows (deck-decision resolve, lobby rules, rematch start)
-    // don't stall during the grace window or after AI takeover.
-    if (room.hostId === player.id) {
-      const newHost = room.players.find(
-        (p) => p.id !== player.id && !p.isBot && !p.disconnected
-      );
-      if (newHost) {
-        room.hostId = newHost.id;
-        io.to(code).emit("hostChanged", {
-          hostId: newHost.id,
-          name: newHost.name,
-          playerName: newHost.name
-        });
-      }
-    }
-
     const grace = room.started ? RECONNECT_GRACE_MS : LOBBY_GRACE_MS;
     const lostTokenId = player.token; // capture before any reassignment
+    const hostIdAtDisconnect = player.id;
     player.disconnectTimer = setTimeout(() => {
       const r = rooms[code];
       if (!r) return;
@@ -1513,6 +1529,8 @@ io.on("connection", (socket) => {
           playerName: stillThere.originalName,
           name: stillThere.originalName
         });
+
+        assignHostIfNeeded(code, hostIdAtDisconnect);
 
         // If it's currently this player's turn, drop the auto-draw turn timer
         // and let the bot scheduler take over.
