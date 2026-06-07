@@ -350,11 +350,14 @@ function isPowerCard(card) {
   return ["+2", "+4", "skip", "reverse", "wild"].includes(card.value);
 }
 
-async function finishGame(roomCode, winnerName) {
+async function finishGame(roomCode, winner) {
   const room = rooms[roomCode];
   if (!room) {
     return;
   }
+
+  const winnerId = winner && winner.id ? winner.id : null;
+  const winnerName = winner && winner.name ? winner.name : String(winner || "No winner");
 
   room.started = false;
   room.rematchVotes = new Set();
@@ -369,7 +372,7 @@ async function finishGame(roomCode, winnerName) {
       .filter((p) => !p.isBot && p.userId)
       .map((p) => ({
         userId: p.userId,
-        won: p.name === winnerName,
+        won: winnerId ? p.id === winnerId : p.name === winnerName,
         cardsPlayed: p.cardsPlayed || 0
       }));
     if (outcomes.length > 0) {
@@ -593,7 +596,7 @@ function applyCardPlay(roomCode, player, playedCard, priorContext) {
     playedCard.color = chooseBotColor(player.cards, player.difficulty);
   }
 
-  room.discard.push(playedCard);
+    room.discard.push(playedCard);
 
   if (!player.isBot) {
     io.to(player.id).emit("yourCards", player.cards);
@@ -732,7 +735,7 @@ function resolveDeckDecision(roomCode, action) {
 
   if (action === "declareWinner") {
     const leader = getLeadingPlayer(room);
-    finishGame(roomCode, leader ? leader.name : "No winner");
+    finishGame(roomCode, leader || "No winner");
     return;
   }
 
@@ -1291,7 +1294,7 @@ io.on("connection", (socket) => {
       playedCard.color = chosenColor;
     }
 
-    room.discard.push(playedCard);
+  room.discard.push(playedCard);
 
     if (player.cards.length === 1) {
       player.calledUNO = false;
@@ -1334,7 +1337,7 @@ io.on("connection", (socket) => {
     }
 
     if (player.cards.length === 0) {
-      finishGame(roomCode, player.name);
+      finishGame(roomCode, player);
       return;
     }
 
@@ -1639,7 +1642,7 @@ io.on("connection", (socket) => {
     if (now - lastReactionAt < 600) return;
     lastReactionAt = now;
 
-    const allowed = ["❤️", "🔥", "😂", "👍", "😱", "😭"];
+    const allowed = ["❤️", "🧠", "😂", "😘", "😱", "😭"];
     if (typeof emoji !== "string" || !allowed.includes(emoji)) return;
     const roomCode = Object.keys(rooms).find((code) =>
       rooms[code].players.some((p) => p.id === socket.id) ||

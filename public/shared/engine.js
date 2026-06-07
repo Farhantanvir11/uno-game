@@ -206,6 +206,7 @@
       ),
       spectatorCount: 0,
       turnEndsAt: room.turnEndsAt || null,
+      deckCount: room.deck ? room.deck.length : 0,
       awaitingDeckDecision: !!room.deckDecision,
       canShuffleDeck: room.discard.length > 1
     };

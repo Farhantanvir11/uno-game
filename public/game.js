@@ -121,6 +121,7 @@ socket.on("profileUpdated", (payload) => {
 
 // Track the player's trophy total so we can show a +N delta on game-over.
 let _lastSeenTrophies = null;
+let localCardsPlayed = 0;
 
 socket.on("stats", (stats) => {
   if (!userProfile) return;
@@ -150,9 +151,9 @@ function renderProfileSummary() {
 
   const s = userProfile.stats;
   if (statsEl) {
-    if (s && s.games_played > 0) {
-      const rate = Math.round((s.games_won / s.games_played) * 100);
-      statsEl.textContent = `${s.games_won}W · ${s.games_lost}L · ${rate}% · streak ${s.best_streak}`;
+    if (s && s.gamesPlayed > 0) {
+      const rate = Math.round((s.wins / s.gamesPlayed) * 100);
+      statsEl.textContent = `${s.wins}W · ${s.losses}L · ${rate}% · streak ${s.bestStreak}`;
     } else {
       statsEl.textContent = "No games yet";
     }
@@ -2181,6 +2182,7 @@ socket.on("gameStarted", () => {
   lastAnnouncedDiscardLen = 0;
   previousCardCount = 0;
   previousHandLength = 0;
+  localCardsPlayed = 0;
   lastTopCardKey = "";
   lastTurnPlayerId = "";
   stackClearedTopKey = null;
@@ -2196,6 +2198,9 @@ socket.on("gameStarted", () => {
 socket.on("yourCards", (cards) => {
   const cardDelta = cards.length - previousCardCount;
   const drawnCards = cardDelta > 0 ? cards.slice(cards.length - cardDelta) : [];
+  if (_transportMode === "local" && cardDelta < 0) {
+    localCardsPlayed += Math.abs(cardDelta);
+  }
   myCards = cards;
   previousCardCount = cards.length;
 
@@ -2364,7 +2369,7 @@ socket.on("gameOver", (winnerName) => {
     const me = currentRoom && Array.isArray(currentRoom.players)
       ? currentRoom.players.find((p) => p && !p.isBot)
       : null;
-    const cardsPlayed = (me && Number.isFinite(me.cardsPlayed)) ? me.cardsPlayed : 0;
+    const cardsPlayed = localCardsPlayed;
     const won = !!(me && me.name === winnerName);
     try { _realSocket.emit("recordBotResult", { won, cardsPlayed }); } catch {}
   }
