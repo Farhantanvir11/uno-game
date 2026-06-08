@@ -1246,6 +1246,31 @@ io.on("connection", (socket) => {
     }
 
     const topCard = getTopCard(room);
+    // Cannot finish the game with a power card, even if the card would also
+    // be illegal against the current top card. This penalty takes precedence.
+    if (player.cards.length === 1 && isPowerCard(card)) {
+      emitInvalidMove(socket, "You cannot finish with a power card. Draw 10 penalty cards.");
+      const drawResult = drawCards(room, player, 10);
+
+      if (drawResult.drawnCount > 0) {
+        io.to(player.id).emit("penalty");
+      }
+
+      if (drawResult.needsDeckDecision) {
+        requestDeckDecision(roomCode, {
+          playerId: player.id,
+          remainingDraws: drawResult.remainingCount,
+          advanceSteps: 0,
+          clearStackOnResume: false,
+          showPenalty: false
+        });
+        return;
+      }
+
+      emitGameState(roomCode);
+      return;
+    }
+
     if (!isPlayableCard(card, topCard, room.stackCount, room.rules)) {
       // Under PENALTY (+2/+4), a misplay should NOT add an extra punishment card —
       // the player is already paying via the stack. Just reject and let them choose
@@ -1277,29 +1302,6 @@ io.on("connection", (socket) => {
 
       // Penalty for an illegal play: take the draw AND lose the turn.
       advanceToNextTurn(roomCode);
-      return;
-    }
-
-    if (player.cards.length === 1 && isPowerCard(card)) {
-      emitInvalidMove(socket, "You cannot finish with a power card. Draw 10 penalty cards.");
-      const drawResult = drawCards(room, player, 10);
-
-      if (drawResult.drawnCount > 0) {
-        io.to(player.id).emit("penalty");
-      }
-
-      if (drawResult.needsDeckDecision) {
-        requestDeckDecision(roomCode, {
-          playerId: player.id,
-          remainingDraws: drawResult.remainingCount,
-          advanceSteps: 0,
-          clearStackOnResume: false,
-          showPenalty: false
-        });
-        return;
-      }
-
-      emitGameState(roomCode);
       return;
     }
 

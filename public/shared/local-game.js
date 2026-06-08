@@ -256,6 +256,15 @@
           const idx = player.cards.findIndex((c) => c.color === card.color && c.value === card.value);
           if (idx === -1) return;
           const top = E.getTopCard(room);
+          // Cannot finish the game with a power card, even if it would otherwise
+          // be an illegal play for some separate reason. This penalty takes precedence.
+          if (player.cards.length === 1 && E.isPowerCard(card)) {
+            emit("invalidMove", "You cannot finish with a power card. Draw 10 penalty cards.");
+            E.drawCards(room, player, 10);
+            emit("penalty");
+            emitGame();
+            return;
+          }
           if (!E.isPlayableCard(card, top, room.stackCount, room.rules)) {
             // Match server: stack-active rejects without extra punishment.
             if (room.stackCount > 0) {
@@ -268,14 +277,6 @@
             E.drawCards(room, player, 1);
             emit("penalty");
             advanceAndSchedule(1);
-            return;
-          }
-          // Cannot finish the game with a power card.
-          if (player.cards.length === 1 && E.isPowerCard(card)) {
-            emit("invalidMove", "You cannot finish with a power card. Draw 10 penalty cards.");
-            E.drawCards(room, player, 10);
-            emit("penalty");
-            emitGame();
             return;
           }
           const played = { ...player.cards[idx] };
