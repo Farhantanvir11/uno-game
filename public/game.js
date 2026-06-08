@@ -2393,23 +2393,33 @@ socket.on("gameOver", (winnerName) => {
 });
 
 /* ----------------------- Emoji reactions ----------------------- */
+function positionReactionPopover() {
+  const pop = document.getElementById("reactionPopover");
+  const fab = document.getElementById("emojiFab");
+  if (!pop || !fab) return;
+
+  const rect = fab.getBoundingClientRect();
+  const viewport = window.visualViewport;
+  const viewportWidth = viewport ? viewport.width : window.innerWidth;
+  const viewportHeight = viewport ? viewport.height : window.innerHeight;
+  const viewportOffsetLeft = viewport ? viewport.offsetLeft : 0;
+  const viewportOffsetTop = viewport ? viewport.offsetTop : 0;
+
+  pop.style.position = "fixed";
+  pop.style.bottom = `${Math.max(8, viewportHeight - rect.top + 8)}px`;
+  pop.style.right = `${Math.max(8, viewportWidth - (rect.right - viewportOffsetLeft))}px`;
+  pop.style.top = "auto";
+  pop.style.left = "auto";
+  pop.style.maxHeight = `${Math.max(180, viewportHeight - 24 - viewportOffsetTop)}px`;
+}
+
 function toggleReactionPopover(event) {
   if (event) event.stopPropagation();
   const pop = document.getElementById("reactionPopover");
-  const fab = document.getElementById("emojiFab");
   if (!pop) return;
 
-  if (pop.hidden && fab) {
-    const rect = fab.getBoundingClientRect();
-    pop.style.position = "fixed";
-    // Open upward, right-aligned with the FAB.
-    pop.style.bottom = `${window.innerHeight - rect.top + 8}px`;
-    pop.style.right = `${Math.max(8, window.innerWidth - rect.right)}px`;
-    pop.style.top = "auto";
-    pop.style.left = "auto";
-  }
-
   pop.hidden = !pop.hidden;
+  if (!pop.hidden) positionReactionPopover();
 }
 
 function sendReaction(emoji) {
@@ -2428,13 +2438,17 @@ function switchReactionTab(tab) {
   pop.querySelectorAll(".reaction-pane").forEach((pane) => {
     pane.hidden = pane.dataset.pane !== tab;
   });
+  positionReactionPopover();
   // Auto-focus chat input when Chat tab opens so the mobile keyboard appears
   // immediately and the player can start typing without an extra tap.
   if (tab === "msg") {
     const input = document.getElementById("chatInput");
     if (input) {
       // Slight delay lets the pane unhide before focus (iOS/Android quirk).
-      setTimeout(() => { try { input.focus({ preventScroll: true }); } catch (_) { input.focus(); } }, 30);
+      setTimeout(() => {
+        positionReactionPopover();
+        try { input.focus({ preventScroll: true }); } catch (_) { input.focus(); }
+      }, 30);
     }
   }
 }
@@ -2787,7 +2801,16 @@ window.addEventListener("resize", () => {
   if (currentRoom?.started) {
     renderPlayers(currentRoom);
   }
+  const pop = document.getElementById("reactionPopover");
+  if (pop && !pop.hidden) positionReactionPopover();
 });
+
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", () => {
+    const pop = document.getElementById("reactionPopover");
+    if (pop && !pop.hidden) positionReactionPopover();
+  });
+}
 
 /* ============================================================
    Landing v2 — routing, settings, leaderboard, name prompt

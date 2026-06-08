@@ -3463,6 +3463,8 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
   gap: 6px;
   padding: 8px;
   max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px - env(safe-area-inset-top, 0px));
+  overflow-y: auto;
   background: rgba(10, 22, 14, 0.92);
   border: 1px solid rgba(255, 213, 79, 0.28);
   border-radius: 18px;
@@ -3470,6 +3472,7 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
   animation: popoverPop 280ms cubic-bezier(0.2, 1.4, 0.4, 1);
   transform-origin: bottom right;
   z-index: 950;
+  overscroll-behavior: contain;
 }
 
 .reaction-popover[hidden] { display: none; }
