@@ -1281,8 +1281,8 @@ io.on("connection", (socket) => {
     }
 
     if (player.cards.length === 1 && isPowerCard(card)) {
-      emitInvalidMove(socket, "You cannot finish the game with a power card.");
-      const drawResult = drawCards(room, player, 1);
+      emitInvalidMove(socket, "You cannot finish with a power card. Draw 10 penalty cards.");
+      const drawResult = drawCards(room, player, 10);
 
       if (drawResult.drawnCount > 0) {
         io.to(player.id).emit("penalty");

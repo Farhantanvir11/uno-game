@@ -270,10 +270,10 @@
             advanceAndSchedule(1);
             return;
           }
-          // Cannot finish the game with a power card (parity with server line 1138).
+          // Cannot finish the game with a power card.
           if (player.cards.length === 1 && E.isPowerCard(card)) {
-            emit("invalidMove", "You cannot finish the game with a power card.");
-            E.drawCards(room, player, 1);
+            emit("invalidMove", "You cannot finish with a power card. Draw 10 penalty cards.");
+            E.drawCards(room, player, 10);
             emit("penalty");
             emitGame();
             return;
