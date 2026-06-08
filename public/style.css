@@ -3458,10 +3458,11 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 }
 
 .reaction-popover {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 8px;
+  padding: 24px 8px 8px;
   max-width: calc(100vw - 24px);
   max-height: calc(100vh - 24px - env(safe-area-inset-top, 0px));
   overflow-y: auto;
@@ -3476,6 +3477,31 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 }
 
 .reaction-popover[hidden] { display: none; }
+
+.reaction-close {
+  position: absolute;
+  top: -10px;
+  right: 4px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(12, 22, 14, 0.96);
+  border: 2px solid rgba(255, 213, 79, 0.72);
+  color: #fff5d6;
+  font-size: 0.88rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.38);
+  transition: transform 120ms ease, background 160ms ease, border-color 160ms ease;
+  z-index: 3;
+}
+.reaction-close:hover { background: rgba(255, 213, 79, 0.18); border-color: rgba(255, 213, 79, 0.95); transform: scale(1.06); }
+.reaction-close:active { transform: scale(0.94); }
 
 .reaction-tabs {
   display: flex;

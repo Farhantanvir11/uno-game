@@ -2425,6 +2425,13 @@ function toggleReactionPopover(event) {
   if (!pop.hidden) positionReactionPopover();
 }
 
+function closeReactionPopover(event) {
+  if (event) event.stopPropagation();
+  const pop = document.getElementById("reactionPopover");
+  if (!pop) return;
+  pop.hidden = true;
+}
+
 function sendReaction(emoji) {
   socket.emit("sendReaction", emoji);
   document.getElementById("reactionPopover").hidden = true;
