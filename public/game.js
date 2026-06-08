@@ -2441,7 +2441,9 @@ function switchReactionTab(tab) {
   positionReactionPopover();
   // Auto-focus chat input when Chat tab opens so the mobile keyboard appears
   // immediately and the player can start typing without an extra tap.
-  if (tab === "msg") {
+  // On mobile browsers this can force the whole page to jump/scroll when the
+  // keyboard opens, so we keep auto-focus native-only.
+  if (tab === "msg" && _isNativeApp) {
     const input = document.getElementById("chatInput");
     if (input) {
       // Slight delay lets the pane unhide before focus (iOS/Android quirk).
