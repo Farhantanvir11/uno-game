@@ -3480,10 +3480,10 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 
 .reaction-close {
   position: absolute;
-  top: -10px;
-  right: 4px;
-  width: 34px;
-  height: 34px;
+  top: -8px;
+  right: 6px;
+  width: 30px;
+  height: 30px;
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -3493,7 +3493,7 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
   background: rgba(12, 22, 14, 0.96);
   border: 2px solid rgba(255, 213, 79, 0.72);
   color: #fff5d6;
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   line-height: 1;
   cursor: pointer;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.38);
