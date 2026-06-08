@@ -2497,8 +2497,13 @@ const QUICK_MSG_PAYLOADS = [
   { text: "Play reverse yellow!",color: "yellow" },
   { text: "Play reverse green!", color: "green" },
   { text: "Play reverse blue!",  color: "blue" },
+  { text: "I have 🎨" },
+  { text: "I have 🔄" },
+  { text: "I have +2" },
+  { text: "I have +4" },
   { text: "No match!" },
-  { text: "Change number!" }
+  { text: "Keep it going!" },
+  { text: "Got a match?" }
 ];
 
 function sendQuickMsg(index) {

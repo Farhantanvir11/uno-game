@@ -476,10 +476,6 @@
     <span aria-hidden="true">😀</span>
   </button>
   <div id="reactionPopover" class="reaction-popover" hidden>
-    <div class="reaction-tabs" role="tablist">
-      <button type="button" class="reaction-tab is-active" data-tab="emoji" onclick="switchReactionTab('emoji')">Emoji</button>
-      <button type="button" class="reaction-tab" data-tab="msg" onclick="switchReactionTab('msg')">Chat</button>
-    </div>
     <div class="reaction-pane" data-pane="emoji">
       <div class="emoji-row">
         <button type="button" onclick="sendReaction('❤️')">❤️</button>
@@ -525,9 +521,19 @@
           <span class="color-chip blue"   onclick="sendQuickMsg(15)" title="Reverse Blue"></span>
         </span>
       </div>
+      <div class="msg-color-row" role="group" aria-label="I have">
+        <span class="msg-color-label">I have</span>
+        <span class="msg-option-chips">
+          <button type="button" class="msg-option-chip" onclick="sendQuickMsg(16)" title="I have wild">🎨</button>
+          <button type="button" class="msg-option-chip" onclick="sendQuickMsg(17)" title="I have reverse">🔄</button>
+          <button type="button" class="msg-option-chip" onclick="sendQuickMsg(18)" title="I have plus two">+2</button>
+          <button type="button" class="msg-option-chip" onclick="sendQuickMsg(19)" title="I have plus four">+4</button>
+        </span>
+      </div>
       <div class="msg-extra-row">
-        <button type="button" class="msg-extra-btn" onclick="sendQuickMsg(16)">No match!</button>
-        <button type="button" class="msg-extra-btn" onclick="sendQuickMsg(17)">Change number!</button>
+        <button type="button" class="msg-extra-btn" onclick="sendQuickMsg(20)">No match!</button>
+        <button type="button" class="msg-extra-btn" onclick="sendQuickMsg(21)">Keep it going!</button>
+        <button type="button" class="msg-extra-btn" onclick="sendQuickMsg(22)">Got a match?</button>
       </div>
     </div>
     <div class="reaction-pane chat-pane" data-pane="msg" hidden>
@@ -539,6 +545,10 @@
                placeholder="Type a message..." aria-label="Chat message" />
         <button type="submit" class="chat-send" aria-label="Send">Send</button>
       </form>
+    </div>
+    <div class="reaction-tabs reaction-tabs-bottom" role="tablist">
+      <button type="button" class="reaction-tab is-active" data-tab="emoji" onclick="switchReactionTab('emoji')">Emoji</button>
+      <button type="button" class="reaction-tab" data-tab="msg" onclick="switchReactionTab('msg')">Chat</button>
     </div>
   </div>
 
