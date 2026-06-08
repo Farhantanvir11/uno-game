@@ -2404,13 +2404,16 @@ function positionReactionPopover() {
   const viewportHeight = viewport ? viewport.height : window.innerHeight;
   const viewportOffsetLeft = viewport ? viewport.offsetLeft : 0;
   const viewportOffsetTop = viewport ? viewport.offsetTop : 0;
+  const activeTab = pop.querySelector(".reaction-tab.is-active")?.dataset.tab;
+  const isMobileWebChat = !_isNativeApp && activeTab === "msg" && viewportWidth <= 520;
+  const liftPx = isMobileWebChat ? 56 : 0;
 
   pop.style.position = "fixed";
-  pop.style.bottom = `${Math.max(8, viewportHeight - rect.top + 8)}px`;
+  pop.style.bottom = `${Math.max(8, viewportHeight - rect.top + 8 + liftPx)}px`;
   pop.style.right = `${Math.max(8, viewportWidth - (rect.right - viewportOffsetLeft))}px`;
   pop.style.top = "auto";
   pop.style.left = "auto";
-  pop.style.maxHeight = `${Math.max(180, viewportHeight - 24 - viewportOffsetTop)}px`;
+  pop.style.maxHeight = `${Math.max(180, viewportHeight - 24 - viewportOffsetTop - liftPx)}px`;
 }
 
 function toggleReactionPopover(event) {
