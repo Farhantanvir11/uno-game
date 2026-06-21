@@ -403,7 +403,8 @@ const soundEffects = {
   unoCall: new Audio("/sounds/uno-call.mp3"),
   penalty: new Audio("/sounds/penalty.mp3"),
   power: new Audio("/sounds/power.mp3"),
-  intro: new Audio("/sounds/intro.mp3")
+  intro: new Audio("/sounds/intro.mp3"),
+  chat: new Audio("/sounds/chat.mp3")
 };
 
 let introPlayed = false;
@@ -2480,6 +2481,7 @@ function sendChatMessage(event) {
   if (now - _lastChatSentAt < 1200) return;
   _lastChatSentAt = now;
 
+  playSound("chat");
   socket.emit("chatMessage", text);
   // Instant local feedback above own avatar.
   spawnChatBubbleAt(text, getOwnAnchor());
