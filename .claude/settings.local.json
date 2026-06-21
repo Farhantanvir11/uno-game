@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --check db.js)",
+      "Bash(node --check server.js)",
+      "Bash(node --check public/game.js)",
+      "Bash(mktemp -d)",
+      "Bash(DATA_DIR=__CMDSUB_OUTPUT__/data node -e ' *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
+    ]
+  }
+}

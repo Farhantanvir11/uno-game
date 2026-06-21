@@ -3148,9 +3148,9 @@ socket.on("leaderboard", ({ rows, myUserId, error } = {}) => {
 
 // Map trophy count to tier label/key. Thresholds tuned for early-game pacing.
 function trophyTier(t) {
-  if (t >= 500) return { key: "legend",   label: "Legend"   };
-  if (t >= 200) return { key: "champion", label: "Champion" };
-  if (t >= 60)  return { key: "pro",      label: "Pro"      };
+  if (t >= 4000) return { key: "legend",   label: "Legend"   };
+  if (t >= 2000) return { key: "champion", label: "Champion" };
+  if (t >= 1000)  return { key: "pro",      label: "Pro"      };
   return          { key: "rookie",   label: "Rookie"   };
 }
 
