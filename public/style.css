@@ -4797,7 +4797,7 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 .lb-header-row,
 .lb-row {
   display: grid;
-  grid-template-columns: 40px 1fr 64px 78px 56px;
+  grid-template-columns: 40px 1fr 64px 78px 92px;
   align-items: center;
   gap: 6px;
   padding: 10px 12px;
@@ -4831,7 +4831,7 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 @media (max-width: 560px) {
   .lb-header-row,
   .lb-row {
-    grid-template-columns: 32px 1fr 52px 64px 42px;
+    grid-template-columns: 32px 1fr 52px 64px 74px;
     gap: 4px;
     padding: 9px 8px;
     font-size: 0.86rem;
@@ -4873,10 +4873,31 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.lb-col-streak {
-  text-align: right;
+.lb-col-winrate {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-end;
   font-variant-numeric: tabular-nums;
-  color: #ff8a65;
+  line-height: 1.15;
+}
+.lb-col-winrate .wr-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.lb-col-winrate .wr-ico { font-size: 0.85em; line-height: 1; }
+.lb-col-winrate .wr-val { font-weight: 700; }
+.lb-col-winrate .wr-item:first-child .wr-val { color: #4fc3f7; }
+.lb-col-winrate .wr-item:last-child  .wr-val { color: #ff8a65; }
+.lb-header-row .lb-col-winrate {
+  font-size: 0.72rem;
+  align-items: flex-end;
+}
+@media (max-width: 560px) {
+  .lb-col-winrate { font-size: 0.78rem; }
+  .lb-col-winrate .wr-ico { font-size: 0.8em; }
 }
 .lb-you {
   font-style: normal;

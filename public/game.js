@@ -3100,13 +3100,18 @@ socket.on("leaderboard", ({ rows, myUserId, error } = {}) => {
       ? r.trophies
       : ((r.gamesPlayed || 0) * 5 + (r.wins || 0) * 25);
     const tier = trophyTier(trophies);
+    const vsPlayer = Number.isFinite(r.winRateVsPlayer) ? `${r.winRateVsPlayer}%` : "—";
+    const vsBot    = Number.isFinite(r.winRateVsBot)    ? `${r.winRateVsBot}%`    : "—";
     return `
       <div class="lb-row${isMe ? " is-me" : ""}">
         <span class="lb-col-rank">${medal}</span>
         <span class="lb-col-name">${_escapeHtml(r.name)}${isMe ? ' <em class="lb-you">you</em>' : ""}</span>
         <span class="lb-col-trophies">🏆 ${trophies}</span>
         <span class="lb-col-tier"><span class="tier-badge tier-${tier.key}">${tier.label}</span></span>
-        <span class="lb-col-streak">🔥 ${r.bestStreak}</span>
+        <span class="lb-col-winrate">
+          <span class="wr-item"><span class="wr-ico">🧑</span><span class="wr-val">${vsPlayer}</span></span>
+          <span class="wr-item"><span class="wr-ico">🤖</span><span class="wr-val">${vsBot}</span></span>
+        </span>
       </div>`;
   }).join("");
   lists.forEach((l) => { l.innerHTML = html; });

@@ -373,6 +373,7 @@ async function finishGame(roomCode, winner) {
       .map((p) => ({
         userId: p.userId,
         won: winnerId ? p.id === winnerId : p.name === winnerName,
+        mode: "human",
         cardsPlayed: p.cardsPlayed || 0
       }));
     if (outcomes.length > 0) {
@@ -980,6 +981,7 @@ io.on("connection", (socket) => {
       await dbApi.recordGameResult([{
         userId,
         won: !!won,
+        mode: "bot",
         cardsPlayed: Math.max(0, Math.min(200, Number(cardsPlayed) || 0))
       }]);
       // Push fresh stats AND leaderboard so the winner modal updates without

@@ -57,6 +57,19 @@ async function init() {
        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
      )`
   ], "write");
+  // Additive migrations: track wins/games separately for games vs human
+  // players (human_wins/human_games) and vs bots (bot_wins/bot_games) so
+  // the leaderboard can show split win rates. Each statement is run on its
+  // own so a pre-existing column is a no-op instead of failing the batch.
+  const MIGRATIONS = [
+    "ALTER TABLE user_stats ADD COLUMN human_wins INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE user_stats ADD COLUMN human_games INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE user_stats ADD COLUMN bot_wins INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE user_stats ADD COLUMN bot_games INTEGER NOT NULL DEFAULT 0"
+  ];
+  for (const sql of MIGRATIONS) {
+    try { await db.execute(sql); } catch (err) { /* column already exists */ }
+  }
 }
 
 // Kick off schema creation immediately; server awaits ready().
@@ -97,7 +110,8 @@ function rowToUser(r) {
 function rowToStats(r) {
   if (!r) return {
     wins: 0, losses: 0, gamesPlayed: 0, cardsPlayed: 0,
-    currentStreak: 0, bestStreak: 0, lastResultAt: null
+    currentStreak: 0, bestStreak: 0, lastResultAt: null,
+    humanWins: 0, humanGames: 0, botWins: 0, botGames: 0
   };
   return {
     wins: Number(r.wins),
@@ -106,7 +120,11 @@ function rowToStats(r) {
     cardsPlayed: Number(r.cards_played),
     currentStreak: Number(r.current_streak),
     bestStreak: Number(r.best_streak),
-    lastResultAt: r.last_result_at != null ? Number(r.last_result_at) : null
+    lastResultAt: r.last_result_at != null ? Number(r.last_result_at) : null,
+    humanWins: Number(r.human_wins || 0),
+    humanGames: Number(r.human_games || 0),
+    botWins: Number(r.bot_wins || 0),
+    botGames: Number(r.bot_games || 0)
   };
 }
 
@@ -181,6 +199,11 @@ async function recordGameResult(outcomes) {
   for (const o of outcomes) {
     if (!o || !o.userId) continue;
     const cards = Math.max(0, Math.min(200, Number(o.cardsPlayed) || 0));
+    // Split the outcome by opponent mode so win rates can be reported
+    // separately for games vs human players and vs bots.
+    const isBot   = o.mode === "bot";
+    const winCol  = isBot ? "bot_wins"   : "human_wins";
+    const gameCol = isBot ? "bot_games"  : "human_games";
     if (o.won) {
       stmts.push({
         sql: `UPDATE user_stats
@@ -189,6 +212,8 @@ async function recordGameResult(outcomes) {
                      cards_played   = cards_played + ?,
                      current_streak = current_streak + 1,
                      best_streak    = MAX(best_streak, current_streak + 1),
+                     ${winCol}      = ${winCol} + 1,
+                     ${gameCol}     = ${gameCol} + 1,
                      last_result_at = ?
                WHERE user_id = ?`,
         args: [cards, now, o.userId]
@@ -200,6 +225,7 @@ async function recordGameResult(outcomes) {
                      games_played   = games_played + 1,
                      cards_played   = cards_played + ?,
                      current_streak = 0,
+                     ${gameCol}     = ${gameCol} + 1,
                      last_result_at = ?
                WHERE user_id = ?`,
         args: [cards, now, o.userId]
@@ -218,6 +244,10 @@ async function getLeaderboard(limit = 20) {
                  s.games_played AS games_played,
                  s.best_streak AS best_streak,
                  s.current_streak AS current_streak,
+                 s.human_wins AS human_wins,
+                 s.human_games AS human_games,
+                 s.bot_wins AS bot_wins,
+                 s.bot_games AS bot_games,
                  (s.games_played * 5 + s.wins * 25) AS trophies
             FROM user_stats s
             JOIN users u ON u.id = s.user_id
@@ -226,18 +256,28 @@ async function getLeaderboard(limit = 20) {
            LIMIT ?`,
     args: [n]
   });
-  return res.rows.map((r, i) => ({
-    rank: i + 1,
-    userId: Number(r.id),
-    name: r.name,
-    avatar: r.avatar,
-    wins: Number(r.wins),
-    losses: Number(r.losses),
-    gamesPlayed: Number(r.games_played),
-    bestStreak: Number(r.best_streak),
-    currentStreak: Number(r.current_streak),
-    trophies: Number(r.trophies)
-  }));
+  return res.rows.map((r, i) => {
+    const humanWins  = Number(r.human_wins || 0);
+    const humanGames = Number(r.human_games || 0);
+    const botWins    = Number(r.bot_wins || 0);
+    const botGames   = Number(r.bot_games || 0);
+    return {
+      rank: i + 1,
+      userId: Number(r.id),
+      name: r.name,
+      avatar: r.avatar,
+      wins: Number(r.wins),
+      losses: Number(r.losses),
+      gamesPlayed: Number(r.games_played),
+      bestStreak: Number(r.best_streak),
+      currentStreak: Number(r.current_streak),
+      humanWins, humanGames,
+      botWins, botGames,
+      winRateVsPlayer: humanGames > 0 ? Math.round((humanWins / humanGames) * 100) : null,
+      winRateVsBot:    botGames   > 0 ? Math.round((botWins   / botGames)   * 100) : null,
+      trophies: Number(r.trophies)
+    };
+  });
 }
 
 module.exports = {
