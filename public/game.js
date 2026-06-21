@@ -2481,7 +2481,6 @@ function sendChatMessage(event) {
   if (now - _lastChatSentAt < 1200) return;
   _lastChatSentAt = now;
 
-  playSound("chat");
   socket.emit("chatMessage", text);
   // Instant local feedback above own avatar.
   spawnChatBubbleAt(text, getOwnAnchor());
@@ -2504,6 +2503,7 @@ function spawnChatBubbleAt(text, anchor) {
 socket.on("chatMessage", ({ playerId, text }) => {
   if (!text) return;
   if (playerId === socket.id) return; // already shown locally
+  playSound("chat"); // notify everyone in the room except the sender
   spawnChatBubbleAt(text, getPlayerAnchor(playerId));
 });
 
