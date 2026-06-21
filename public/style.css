@@ -4797,7 +4797,7 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 .lb-header-row,
 .lb-row {
   display: grid;
-  grid-template-columns: 40px 1fr 64px 78px 92px;
+  grid-template-columns: 40px 1fr 60px 74px 104px;
   align-items: center;
   gap: 6px;
   padding: 10px 12px;
@@ -4831,7 +4831,7 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 @media (max-width: 560px) {
   .lb-header-row,
   .lb-row {
-    grid-template-columns: 32px 1fr 52px 64px 74px;
+    grid-template-columns: 30px 1fr 48px 58px 86px;
     gap: 4px;
     padding: 9px 8px;
     font-size: 0.86rem;
@@ -4892,6 +4892,11 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 .lb-col-winrate .wr-val { font-weight: 700; }
 .lb-col-winrate .wr-item:first-child .wr-val { color: #4fc3f7; }
 .lb-col-winrate .wr-item:last-child  .wr-val { color: #ff8a65; }
+.lb-col-winrate .wr-sub {
+  font-size: 0.7em;
+  font-weight: 600;
+  color: rgba(241,245,255,0.42);
+}
 .lb-header-row .lb-col-winrate {
   font-size: 0.72rem;
   align-items: flex-end;

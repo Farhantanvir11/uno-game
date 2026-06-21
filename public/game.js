@@ -3100,8 +3100,14 @@ socket.on("leaderboard", ({ rows, myUserId, error } = {}) => {
       ? r.trophies
       : ((r.gamesPlayed || 0) * 5 + (r.wins || 0) * 25);
     const tier = trophyTier(trophies);
-    const vsPlayer = Number.isFinite(r.winRateVsPlayer) ? `${r.winRateVsPlayer}%` : "—";
-    const vsBot    = Number.isFinite(r.winRateVsBot)    ? `${r.winRateVsBot}%`    : "—";
+    const hasPlayer = Number.isFinite(r.winRateVsPlayer);
+    const hasBot    = Number.isFinite(r.winRateVsBot);
+    const vsPlayer = hasPlayer ? `${r.winRateVsPlayer}%` : "—";
+    const vsBot    = hasBot    ? `${r.winRateVsBot}%`    : "—";
+    // Match count in each mode (sample size for the win rate) so viewers can
+    // gauge how established a player's record is. Shown only when non-zero.
+    const playerMatches = hasPlayer ? `<span class="wr-sub">${r.humanGames || 0}</span>` : "";
+    const botMatches    = hasBot    ? `<span class="wr-sub">${r.botGames || 0}</span>`    : "";
     return `
       <div class="lb-row${isMe ? " is-me" : ""}">
         <span class="lb-col-rank">${medal}</span>
@@ -3109,8 +3115,8 @@ socket.on("leaderboard", ({ rows, myUserId, error } = {}) => {
         <span class="lb-col-trophies">🏆 ${trophies}</span>
         <span class="lb-col-tier"><span class="tier-badge tier-${tier.key}">${tier.label}</span></span>
         <span class="lb-col-winrate">
-          <span class="wr-item"><span class="wr-ico">🧑</span><span class="wr-val">${vsPlayer}</span></span>
-          <span class="wr-item"><span class="wr-ico">🤖</span><span class="wr-val">${vsBot}</span></span>
+          <span class="wr-item"><span class="wr-ico">🧑</span><span class="wr-val">${vsPlayer}</span>${playerMatches}</span>
+          <span class="wr-item"><span class="wr-ico">🤖</span><span class="wr-val">${vsBot}</span>${botMatches}</span>
         </span>
       </div>`;
   }).join("");
