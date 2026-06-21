@@ -4869,9 +4869,10 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 }
 .lb-col-rank { font-size: 1.05rem; text-align: center; }
 .lb-col-name {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.15;
 }
 .lb-col-winrate {
   display: flex;
