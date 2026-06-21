@@ -1645,7 +1645,8 @@ io.on("connection", (socket) => {
     { text: "I have +4" },
     { text: "No match!" },
     { text: "Keep it going!" },
-    { text: "Got a match?" }
+    { text: "Got a match?" },
+    { text: "Play Fast!" }
   ];
 
   socket.on("sendQuickMsg", (index) => {
