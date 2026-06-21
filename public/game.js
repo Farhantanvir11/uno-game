@@ -2561,6 +2561,7 @@ function spawnQuickMsgAt({ text, color } = {}, anchor) {
 
 socket.on("quickMsg", ({ playerId, text, color }) => {
   if (playerId === socket.id) return; // already shown locally
+  playSound("chat"); // notify everyone in the room except the sender
   spawnQuickMsgAt({ text, color }, getPlayerAnchor(playerId));
 });
 
