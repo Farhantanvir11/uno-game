@@ -59,10 +59,20 @@ body {
    has no reason to scroll. Without this, focusing the chat input on a mobile
    browser makes the OS pan the page upward to reveal the input once the
    keyboard eats the bottom — which pushes the top player area / room header
-   out of view. The chat popover floats within the visual viewport on its own,
-   so locking scroll here keeps both the top anchored and the input usable. */
-html:has(body[data-screen="game"]),
+   out of view.
+   overflow:hidden alone does NOT stop iOS Safari's focus-scroll, so the body
+   is also made a fixed, viewport-sized box: with no scrollable overflow there
+   is nothing for the OS to pan. The chat popover floats within the visual
+   viewport on its own, so this keeps both the top anchored and the input
+   usable. Scoped to the game screen; lobby/menu still scroll normally. */
+html:has(body[data-screen="game"]) { overflow: hidden; }
+
 body[data-screen="game"] {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   overflow: hidden;
 }
 
