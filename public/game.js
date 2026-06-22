@@ -2413,14 +2413,31 @@ function positionReactionPopover() {
   const viewportOffsetTop = viewport ? viewport.offsetTop : 0;
   const activeTab = pop.querySelector(".reaction-tab.is-active")?.dataset.tab;
   const isMobileWebChat = !_isNativeApp && activeTab === "msg" && viewportWidth <= 520;
-  const liftPx = isMobileWebChat ? 56 : 0;
+  // When the chat input is focused the on-screen keyboard is up. With
+  // interactive-widget=resizes-content the viewport already sits above the
+  // keyboard, so anchor the box LOW (just above the keys, over the hand area)
+  // instead of floating it high above the FAB and over the board/opponents.
+  const chatInputFocused =
+    isMobileWebChat &&
+    document.activeElement &&
+    document.activeElement.id === "chatInput";
 
   pop.style.position = "fixed";
-  pop.style.bottom = `${Math.max(8, viewportHeight - rect.top + 8 + liftPx)}px`;
   pop.style.right = `${Math.max(8, viewportWidth - (rect.right - viewportOffsetLeft))}px`;
   pop.style.top = "auto";
   pop.style.left = "auto";
-  pop.style.maxHeight = `${Math.max(180, viewportHeight - 24 - viewportOffsetTop - liftPx)}px`;
+
+  if (chatInputFocused) {
+    // Sit just above the keyboard. On Chrome (resizes-content) innerHeight has
+    // shrunk to the visible area so kbHeight≈0; on iOS (keyboard overlays) it
+    // is the real keyboard height and lifts the box clear of the keys.
+    const kbHeight = Math.max(0, window.innerHeight - viewportHeight);
+    pop.style.bottom = `${kbHeight + 10}px`;
+    pop.style.maxHeight = `${Math.max(160, viewportHeight - 24 - viewportOffsetTop)}px`;
+  } else {
+    pop.style.bottom = `${Math.max(8, viewportHeight - rect.top + 8)}px`;
+    pop.style.maxHeight = `${Math.max(180, viewportHeight - 24 - viewportOffsetTop)}px`;
+  }
 }
 
 function toggleReactionPopover(event) {
