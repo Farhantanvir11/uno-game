@@ -368,14 +368,34 @@ async function finishGame(roomCode, winner) {
   // Await the DB write so any leaderboard/stats request triggered by
   // the gameOver event sees the new counts (no stale "stuck" trophies).
   try {
-    const outcomes = room.players
-      .filter((p) => !p.isBot && p.userId)
-      .map((p) => ({
-        userId: p.userId,
+    const outcomes = [];
+    for (const p of room.players) {
+      // Pure bot seats are never recorded. A human who disconnected and was
+      // temp-converted to an AI seat (wasHuman) still played — credit them.
+      if (p.isBot && !p.wasHuman) continue;
+      // userId normally lives on the seat. But if the seat was created before
+      // loginDevice finished (e.g. joining via an invite link right after app
+      // open), the seat-level back-fill can lag the record — so also read it
+      // from the still-connected socket. Without this the result is silently
+      // dropped, which is why a session's first match sometimes fails to count.
+      const sock = io.sockets.sockets.get(p.id);
+      const uid = p.userId || (sock && sock.data && sock.data.userId) || null;
+      if (!uid) {
+        console.warn(
+          `[stats] dropped unattributed result: room=${roomCode} name="${p.name}" ` +
+          `seatUserId=${p.userId != null ? p.userId : null} ` +
+          `socketLoggedIn=${!!(sock && sock.data && sock.data.userId)} ` +
+          `wasHuman=${!!p.wasHuman} disconnected=${!!p.disconnected}`
+        );
+        continue;
+      }
+      outcomes.push({
+        userId: uid,
         won: winnerId ? p.id === winnerId : p.name === winnerName,
         mode: "human",
         cardsPlayed: p.cardsPlayed || 0
-      }));
+      });
+    }
     if (outcomes.length > 0) {
       await dbApi.recordGameResult(outcomes);
     }
