@@ -1832,7 +1832,13 @@ const ME_OFFSET_FROM_BOTTOM_PX = 180;
 function renderPlayers(room) {
   playersElement.innerHTML = "";
   const W = window.innerWidth;
-  const H = window.innerHeight;
+  // Prefer the visual-viewport height when the keyboard has shrunk it below
+  // the layout viewport (iOS Safari, where interactive-widget is ignored and
+  // innerHeight stays full-size). On Chrome Android under resizes-content the
+  // two are equal, so this is a no-op there. Keeps opponent seats from
+  // anchoring to the full height and clipping off the top when chat is open.
+  const vv = window.visualViewport;
+  const H = vv && vv.height < window.innerHeight ? vv.height : window.innerHeight;
 
   // Arrange opponents in play order (next-to-play first), direction-aware.
   const myIdx = room.players.findIndex((p) => p.id === socket.id);
@@ -2830,6 +2836,18 @@ if (window.visualViewport) {
     // skipped by the data-screen guard.)
     if (document.body.dataset.screen === "game" && window.scrollY > 0) {
       window.scrollTo(0, 0);
+    }
+    // Drive the body box height (var(--app-vh), see style.css) from the visual
+    // viewport and re-render players against it. iOS Safari ignores
+    // interactive-widget, so without this the board wouldn't shrink on iOS and
+    // the top would clip. On Chrome Android this is redundant — resizes-content
+    // already shrank the layout viewport and fired window 'resize', which
+    // re-ran renderPlayers — but the values converge there, so it's harmless.
+    if (document.body.dataset.screen === "game") {
+      document.documentElement.style.setProperty(
+        "--app-vh", window.visualViewport.height + "px"
+      );
+      if (currentRoom && currentRoom.started) renderPlayers(currentRoom);
     }
     const pop = document.getElementById("reactionPopover");
     if (pop && !pop.hidden) positionReactionPopover();

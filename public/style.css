@@ -71,7 +71,13 @@ body[data-screen="game"] {
   position: fixed;
   top: 0;
   right: 0;
-  bottom: 0;
+  /* Sized to the visible area so the board shrinks above the keyboard and the
+     top stays put. Defaults to 100dvh — correct on Chrome Android, where
+     interactive-widget=resizes-content already shrinks the layout viewport.
+     iOS Safari ignores that attribute, so onViewportChange sets --app-vh to
+     visualViewport.height at runtime to shrink this box there too.
+     (top:0 + explicit height — not bottom:0 — so the variable sizes the box.) */
+  height: var(--app-vh, 100dvh);
   left: 0;
   overflow: hidden;
 }
