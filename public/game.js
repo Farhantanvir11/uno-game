@@ -2822,10 +2822,20 @@ window.addEventListener("resize", () => {
 });
 
 if (window.visualViewport) {
-  window.visualViewport.addEventListener("resize", () => {
+  const onViewportChange = () => {
+    // Defeat the mobile-browser focus-scroll that hides the top player area
+    // when the chat keyboard opens. overflow:hidden on the game screen covers
+    // most of it, but iOS can still nudge the page — pin it back to the top.
+    // (Safe: the game board never intends to scroll, and non-game screens are
+    // skipped by the data-screen guard.)
+    if (document.body.dataset.screen === "game" && window.scrollY > 0) {
+      window.scrollTo(0, 0);
+    }
     const pop = document.getElementById("reactionPopover");
     if (pop && !pop.hidden) positionReactionPopover();
-  });
+  };
+  window.visualViewport.addEventListener("resize", onViewportChange);
+  window.visualViewport.addEventListener("scroll", onViewportChange);
 }
 
 /* ============================================================
