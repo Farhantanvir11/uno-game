@@ -66,11 +66,17 @@ function createBotPlayer(roomCode, difficulty = "normal") {
   };
 }
 
+// Unambiguous alphabet — drops 0/O, 1/I, 2/Z, 5/S so shared codes can't be mistyped.
+const ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
 function generateRoomCode() {
   let roomCode = "";
 
   do {
-    roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+    roomCode = "";
+    for (let i = 0; i < 5; i += 1) {
+      roomCode += ROOM_CODE_ALPHABET[Math.floor(Math.random() * ROOM_CODE_ALPHABET.length)];
+    }
   } while (rooms[roomCode]);
 
   return roomCode;
@@ -546,6 +552,7 @@ function startRoomGame(roomCode, handSize = DEFAULT_HAND_SIZE) {
   room.players.forEach((player) => {
     player.cards = [];
     player.calledUNO = false;
+    player.cardsPlayed = 0;
     drawCards(room, player, room.handSize);
   });
 

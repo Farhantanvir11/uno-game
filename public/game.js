@@ -353,6 +353,7 @@ let suppressNextDrawFlight = false;
 let audioUnlocked = false;
 let pendingDrawSound = false;
 let isPlayingCard = false;
+let isDrawingCard = false;
 let isMuted = false;
 let lastTickSecond = -1;
 const MUTE_STORAGE_KEY = "last-card-battle-muted";
@@ -884,8 +885,12 @@ function drawCard() {
     return;
   }
 
+  if (isDrawingCard) return; // guard against rapid double-taps during flight
+
   pendingDrawSound = true;
   playSound("drawCard");
+  haptic("light");
+  isDrawingCard = true;
   socket.emit("drawCard", roomCode);
 }
 
@@ -917,6 +922,7 @@ function chooseColor(color) {
   const emit = () => {
     socket.emit("playCard", { roomCode, card, chosenColor: color });
     isPlayingCard = false;
+    isDrawingCard = false;
   };
 
   // Use stored rect if sourceEl was detached from DOM by renderHand.
@@ -1227,6 +1233,7 @@ function playCard(card, sourceEl) {
   const emit = () => {
     socket.emit("playCard", { roomCode, card });
     isPlayingCard = false;
+    isDrawingCard = false;
   };
 
   if (capturedRect) {
@@ -2198,6 +2205,7 @@ socket.on("gameStarted", () => {
   pendingCardElement = null;
   pendingDrawSound = false;
   isPlayingCard = false;
+  isDrawingCard = false;
   suppressNextDrawFlight = true;
   setScreen("game");
 });
@@ -2213,6 +2221,7 @@ socket.on("yourCards", (cards) => {
 
   if (pendingDrawSound && cardDelta > 0) {
     pendingDrawSound = false;
+    isDrawingCard = false;
   } else if (currentRoom?.started && cardDelta > 0 && currentRoom.players[currentRoom.turn]?.id === socket.id) {
     playSound("drawCard");
   }
@@ -2303,6 +2312,7 @@ socket.on("invalidMove", (message) => {
   });
   pendingCard = null;
   isPlayingCard = false;
+  isDrawingCard = false;
   pendingDrawSound = false;
 });
 
@@ -2317,6 +2327,7 @@ socket.on("leftRoom", () => {
   pendingCardElement = null;
   pendingCardRect = null;
   isPlayingCard = false;
+  isDrawingCard = false;
   colorPicker.style.display = "none";
   deckDecisionModal.style.display = "none";
   winnerModal.style.display = "none";
@@ -2332,6 +2343,7 @@ socket.on("unoCalled", ({ playerName }) => {
 });
 
 socket.on("roomError", (message) => {
+  isDrawingCard = false;
   showToast(message || "Room error", 1600);
   playSound("invalidMove");
 });
@@ -2351,6 +2363,7 @@ socket.on("gameOver", (winnerName) => {
   pendingCardElement = null;
   pendingCardRect = null;
   isPlayingCard = false;
+  isDrawingCard = false;
   colorPicker.style.display = "none";
   deckDecisionModal.style.display = "none";
   playSound("win");
@@ -2733,7 +2746,7 @@ const tutorialSteps = [
   },
   {
     title: "Tap the deck to draw",
-    body: "No playable card? <b>Tap the deck</b> in the center of the table to draw. The drawn card auto-plays if it's playable; otherwise it stays in your hand and the turn passes.",
+    body: "No playable card? <b>Tap the deck</b> in the center of the table to draw one card. If you can play it, tap it now — otherwise your turn passes.",
     art: `
       <div class="tut-row tut-deck-demo">
         <div class="tut-deck">
@@ -2777,7 +2790,7 @@ const tutorialSteps = [
   },
   {
     title: "Last Card!",
-    body: "When you have <b>one card left</b>, the game auto-calls Last Card. If you forget the call before someone else does, you draw 2 as penalty.",
+    body: "When you have <b>one card left</b>, press the <b>Last Card!</b> button quickly. If you're too slow — or an opponent calls you out first — you draw 2 as a penalty.",
     art: `
       <div class="tut-row tut-uno">
         <div class="tut-card yellow">3</div>
