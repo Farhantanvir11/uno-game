@@ -23,6 +23,9 @@ const LOBBY_GRACE_MS      = 60 * 1000;
 // Idle-room garbage collection interval and threshold.
 const ROOM_GC_INTERVAL_MS = 5  * 60 * 1000;
 const ROOM_IDLE_LIMIT_MS  = 60 * 60 * 1000;
+// Fallback for the empty-deck decision: if the host never acts (AFK, left, or got
+// converted to a bot), auto-resolve so the game can't freeze on the modal forever.
+const DECK_DECISION_TIMEOUT_MS = process.env.DECK_DECISION_TIMEOUT_MS ? Number(process.env.DECK_DECISION_TIMEOUT_MS) : 30 * 1000;
 const rooms = {};
 
 function makeToken() {
@@ -732,6 +735,16 @@ function queueBotTurnIfNeeded(roomCode) {
   }, botThinkMs(activePlayer.difficulty));
 }
 
+// Auto-resolve a pending deck decision using the non-destructive default:
+// reshuffle and keep playing when possible, otherwise declare the leader winner.
+function autoResolveDeckDecision(roomCode) {
+  const room = rooms[roomCode];
+  if (!room || !room.deckDecision) {
+    return;
+  }
+  resolveDeckDecision(roomCode, room.discard.length > 1 ? "shuffle" : "declareWinner");
+}
+
 function requestDeckDecision(roomCode, decisionState = {}) {
   const room = rooms[roomCode];
   if (!room || room.deckDecision) {
@@ -747,6 +760,14 @@ function requestDeckDecision(roomCode, decisionState = {}) {
   };
 
   stopTurnTimer(room);
+
+  // Safety net: if the host never decides (AFK, left, or converted to a bot),
+  // auto-resolve so the match can't freeze on this modal forever.
+  if (room.deckDecisionTimer) clearTimeout(room.deckDecisionTimer);
+  room.deckDecisionTimer = setTimeout(() => {
+    autoResolveDeckDecision(roomCode);
+  }, DECK_DECISION_TIMEOUT_MS);
+
   emitGameState(roomCode);
   io.to(roomCode).emit("deckEmpty", {
     roomCode,
@@ -759,6 +780,11 @@ function resolveDeckDecision(roomCode, action) {
   const room = rooms[roomCode];
   if (!room || !room.deckDecision) {
     return;
+  }
+
+  if (room.deckDecisionTimer) {
+    clearTimeout(room.deckDecisionTimer);
+    room.deckDecisionTimer = null;
   }
 
   if (action === "declareWinner") {
@@ -847,6 +873,12 @@ function assignHostIfNeeded(roomCode, previousHostId) {
       playerName: newHost.name
     });
   }
+
+  // If an empty-deck decision is pending and the new host can't make it (a bot or
+  // a disconnected seat), auto-resolve so the game doesn't freeze on the modal.
+  if (room.deckDecision && (newHost.isBot || newHost.disconnected)) {
+    autoResolveDeckDecision(roomCode);
+  }
 }
 
 function attachUserIdToActiveSeats(socket, userId) {
@@ -893,6 +925,11 @@ function removePlayerFromRoom(socketId) {
 
   room.players.splice(index, 1);
 
+  // The original lobby host truly left — release any sticky-host claim (H1).
+  if (room.pendingHostToken && removed && room.pendingHostToken === removed.token) {
+    room.pendingHostToken = null;
+  }
+
   if (room.players.length === 0 || room.players.every((player) => player.isBot)) {
     stopBotTurn(room);
     stopTurnTimer(room);
@@ -923,6 +960,21 @@ function removePlayerFromRoom(socketId) {
     emitGameState(roomCode);
   } else {
     emitLobby(roomCode);
+    // Re-check a pending rematch so survivors aren't stuck waiting for a seat
+    // that just left; cancel if too few humans remain to play.
+    if (room.rematchVotes && room.rematchVotes.size > 0) {
+      const humans = room.players.filter((p) => !p.isBot && !p.disconnected);
+      const votes = humans.filter((p) => room.rematchVotes.has(p.token)).length;
+      if (humans.length < MIN_PLAYERS) {
+        room.rematchVotes = new Set();
+        io.to(roomCode).emit("rematchUpdate", { votes: 0, required: humans.length, expired: true });
+      } else if (votes >= humans.length) {
+        room.rematchVotes = new Set();
+        startRoomGame(roomCode, room.handSize);
+      } else {
+        io.to(roomCode).emit("rematchUpdate", { votes, required: humans.length });
+      }
+    }
   }
 }
 
@@ -1534,6 +1586,16 @@ io.on("connection", (socket) => {
     player.disconnected = true;
     if (player.disconnectTimer) clearTimeout(player.disconnectTimer);
 
+    // If the host dropped in the lobby, reassign immediately so the room isn't
+    // left without a startable host for the whole grace window — but remember the
+    // original host's token so they reclaim host on a quick reconnect (H1).
+    if (!room.started) {
+      if (room.hostId === player.id) {
+        room.pendingHostToken = player.token;
+      }
+      assignHostIfNeeded(code, player.id);
+    }
+
     const grace = room.started ? RECONNECT_GRACE_MS : LOBBY_GRACE_MS;
     const lostTokenId = player.token; // capture before any reassignment
     const hostIdAtDisconnect = player.id;
@@ -1625,6 +1687,20 @@ io.on("connection", (socket) => {
     const wasHost = room.hostId === player.id;
     player.id = socket.id;
     if (wasHost) room.hostId = socket.id;
+
+    // Sticky host: if this player was the lobby host but got reassigned away
+    // during a brief disconnect, restore host to them on reconnect (H1).
+    if (room.pendingHostToken && room.pendingHostToken === token) {
+      room.pendingHostToken = null;
+      if (!room.started && room.hostId !== socket.id) {
+        room.hostId = socket.id;
+        io.to(code).emit("hostChanged", {
+          hostId: socket.id,
+          name: player.name,
+          playerName: player.name
+        });
+      }
+    }
     player.disconnected = false;
     if (player.userId) socket.data.userId = player.userId;
     socket.join(code);
@@ -1739,16 +1815,21 @@ io.on("connection", (socket) => {
     const room = rooms[roomCode];
     if (room.started) return;
 
-    if (!room.rematchVotes) room.rematchVotes = new Set();
-    room.rematchVotes.add(socket.id);
+    const voter = room.players.find((p) => p.id === socket.id);
+    if (!voter) return;
 
-    const humanPlayers = room.players.filter((p) => !p.isBot);
+    if (!room.rematchVotes) room.rematchVotes = new Set();
+    // Key votes by the stable session token, not socket.id — socket.id changes on
+    // reconnect, which would otherwise orphan an already-cast vote (R1).
+    room.rematchVotes.add(voter.token);
+
+    const humanPlayers = room.players.filter((p) => !p.isBot && !p.disconnected);
     const required = humanPlayers.length;
-    const votes = humanPlayers.filter((p) => room.rematchVotes.has(p.id)).length;
+    const votes = humanPlayers.filter((p) => room.rematchVotes.has(p.token)).length;
 
     io.to(roomCode).emit("rematchUpdate", { votes, required });
 
-    if (votes >= required) {
+    if (votes >= required && humanPlayers.length >= MIN_PLAYERS) {
       room.rematchVotes = new Set();
       startRoomGame(roomCode, room.handSize);
     }
@@ -1881,6 +1962,7 @@ setInterval(() => {
     if (idle || onlyBots || everyoneDropped) {
       stopBotTurn(room);
       stopTurnTimer(room);
+      if (room.deckDecisionTimer) clearTimeout(room.deckDecisionTimer);
       room.players.forEach((p) => {
         if (p.disconnectTimer) clearTimeout(p.disconnectTimer);
       });

@@ -190,7 +190,15 @@ socket.on("session", ({ token, roomCode: code }) => {
 });
 
 socket.on("sessionExpired", () => {
+  // Server couldn't resume our stored session (room gone / token invalid).
+  // Tear down any stale state so a reconnect doesn't strand us on a frozen
+  // board, then return to the menu. (Only fires when we actually had a session.)
+  const hadSession = !!readSession();
   clearSession();
+  resetGameState();
+  if (hadSession) {
+    showToast("This game is no longer available.", 1500);
+  }
 });
 
 socket.on("sessionResumed", ({ roomCode: code }) => {
@@ -682,9 +690,15 @@ function stopSound(name) {
 
 function closeWinnerModal() {
   winnerModal.style.display = "none";
-  // Game is over — drop the session so a refresh doesn't try to resume a finished match.
-  clearSession();
-  setScreen("lobby");
+  if (_transportMode !== "local") {
+    // Online: opting out leaves the room so the seat vacates — it can't keep
+    // counting toward the rematch vote and stall the players who stay. leaveRoom
+    // also tears down locally so a buffered emit can't strand us (G1).
+    leaveRoom();
+  } else {
+    clearSession();
+    setScreen("lobby");
+  }
 }
 
 function showToast(message, duration = 1000) {
@@ -814,8 +828,15 @@ function confirmBotDifficulty(difficulty) {
 
 function leaveRoom() {
   socket.emit("leaveRoom");
-  // If we were in a local bot match, tear it down and return to cloud transport.
-  if (_transportMode === "local") setTransportRemote();
+  if (_transportMode === "local") {
+    // Local bot match — tear it down and return to cloud transport.
+    setTransportRemote();
+  } else {
+    // Tear down locally right away so a flaky/buffered socket can't strand us in
+    // a stale room on reconnect (the server's leftRoom echo repeats this, idempotently).
+    clearSession();
+    resetGameState();
+  }
 }
 
 function requestRematch() {
@@ -1200,6 +1221,15 @@ function playCard(card, sourceEl) {
   }
   if (isPlayingCard) return; // guard against rapid double-taps during flight
 
+  // Local playability check — don't animate/emit a card the server will reject.
+  // The server penalizes an illegal play with a forced draw (+ a forfeited turn),
+  // and finishing with a power card costs 10 cards, so block both before any emit.
+  if (!isLocallyPlayable(card, currentRoom)) {
+    showToast("That card can't be played right now", 900);
+    playSound("invalidMove");
+    return;
+  }
+
   if (card.value === "wild" || card.value === "+4") {
     // If a previous wild/+4 tap is still awaiting color choice, restore that
     // card's visibility before we overwrite the pending refs (else it stays
@@ -1523,10 +1553,26 @@ function isCardPlayable(card, top, stackCount, rules) {
   return card.color === top.color || card.value === top.value;
 }
 
+// Same power-card set as the server and shared engine — keeps the client's
+// playability prediction in sync with the server's rulings.
+function isPowerCard(card) {
+  return ["+2", "+4", "skip", "reverse", "wild"].includes(card.value);
+}
+
+// Would the server actually accept this card right now? Combines the normal
+// color/value/stack check with the server's "cannot finish with a power card"
+// rule, so the hand glow, the first-play hint, and the tap guard all agree with
+// the server and never steer the player into a penalty.
+function isLocallyPlayable(card, room) {
+  const top = room.discard[room.discard.length - 1];
+  if (!isCardPlayable(card, top, room.stackCount, room.rules)) return false;
+  if (myCards.length === 1 && isPowerCard(card)) return false;
+  return true;
+}
+
 function renderHand(room) {
   handElement.innerHTML = "";
   const isMyTurn = room.players[room.turn]?.id === socket.id && !room.awaitingDeckDecision;
-  const top = room.discard[room.discard.length - 1];
   const playableCards = [];
 
   myCards.forEach((card, idx) => {
@@ -1536,7 +1582,7 @@ function renderHand(room) {
     cardElement.disabled = !isMyTurn;
     cardElement.style.setProperty("--i", idx);
 
-    const playable = isMyTurn && isCardPlayable(card, top, room.stackCount, room.rules);
+    const playable = isMyTurn && isLocallyPlayable(card, room);
     if (playable) {
       cardElement.classList.add("playable");
       playableCards.push({ idx, el: cardElement });
@@ -2316,8 +2362,10 @@ socket.on("invalidMove", (message) => {
   pendingDrawSound = false;
 });
 
-socket.on("leftRoom", () => {
-  clearSession();
+// Tear down all in-memory game/turn state and return to the menu. Shared by the
+// leftRoom and sessionExpired paths so a destroyed or expired room never leaves
+// the player on a frozen board with stale state.
+function resetGameState() {
   clearInterval(timerInterval);
   stopSound("timerTick");
   currentRoom = null;
@@ -2332,6 +2380,11 @@ socket.on("leftRoom", () => {
   deckDecisionModal.style.display = "none";
   winnerModal.style.display = "none";
   setScreen("menu");
+}
+
+socket.on("leftRoom", () => {
+  clearSession();
+  resetGameState();
 });
 
 socket.on("unoCalled", ({ playerName }) => {
@@ -2348,7 +2401,14 @@ socket.on("roomError", (message) => {
   playSound("invalidMove");
 });
 
-socket.on("rematchUpdate", ({ votes, required }) => {
+socket.on("rematchUpdate", ({ votes, required, expired }) => {
+  if (expired) {
+    // A player left mid-vote (or too few remain) — release the button so the
+    // remaining players aren't stuck on a disabled "Waiting…" forever.
+    resetRematchButton();
+    showToast("Rematch cancelled — not enough players.", 1500);
+    return;
+  }
   const label = document.getElementById("rematchLabel");
   if (!label) return;
   if (votes < required) {
@@ -3267,7 +3327,7 @@ function handleHardwareBack() {
     { el: document.getElementById("winnerModal"),       close: () => { document.getElementById("winnerModal").style.display = "none"; } },
     { el: document.getElementById("namePromptModal"),   close: () => { /* keep — required */ } },
     { el: document.getElementById("challengeModal"),    close: () => { document.getElementById("challengeModal").style.display = "none"; } },
-    { el: document.getElementById("deckDecisionModal"), close: () => { document.getElementById("deckDecisionModal").style.display = "none"; } },
+    { el: document.getElementById("deckDecisionModal"), close: () => { /* keep open — host must choose, and the server auto-resolves if they can't */ } },
   ];
   for (const o of overlays) {
     if (isVisible(o.el)) { o.close(); return true; }
