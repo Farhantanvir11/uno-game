@@ -190,15 +190,13 @@ socket.on("session", ({ token, roomCode: code }) => {
 });
 
 socket.on("sessionExpired", () => {
-  // Server couldn't resume our stored session (room gone / token invalid).
-  // Tear down any stale state so a reconnect doesn't strand us on a frozen
-  // board, then return to the menu. (Only fires when we actually had a session.)
-  const hadSession = !!readSession();
+  // Server couldn't resume our stored session (room gone / token invalid) — this
+  // only fires when we actually had one (resumeSession is only sent when a
+  // session exists). Tear down stale state so a reconnect doesn't strand us on a
+  // frozen board, then return to the menu.
   clearSession();
   resetGameState();
-  if (hadSession) {
-    showToast("This game is no longer available.", 1500);
-  }
+  showToast("This game is no longer available.", 1500);
 });
 
 socket.on("sessionResumed", ({ roomCode: code }) => {
@@ -1975,8 +1973,16 @@ socket.on("playerReclaimedSeat", ({ playerName }) => {
   if (playerName) showToast(`${playerName} reconnected`, 1600);
 });
 
+let _hostChangeTimer = null;
 socket.on("hostChanged", ({ playerName }) => {
-  if (playerName) showToast(`${playerName} is now host`, 1600);
+  if (!playerName) return;
+  // Collapse a rapid host-change cascade (e.g. two lobby players drop moments
+  // apart) into a single toast for the final host (H3).
+  if (_hostChangeTimer) clearTimeout(_hostChangeTimer);
+  _hostChangeTimer = setTimeout(() => {
+    _hostChangeTimer = null;
+    showToast(`${playerName} is now host`, 1600);
+  }, 300);
 });
 
 function updateActiveTimerRing() {

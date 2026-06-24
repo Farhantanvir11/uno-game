@@ -901,6 +901,27 @@ function attachUserIdToActiveSeats(socket, userId) {
   });
 }
 
+// Re-evaluate a pending rematch after membership changes (a vote, a leave, or a
+// disconnect): start the game if the remaining connected humans have all voted,
+// or expire it if too few humans remain to play. Idempotent (clears votes first).
+function recheckRematch(roomCode) {
+  const room = rooms[roomCode];
+  if (!room || room.started || !room.rematchVotes || room.rematchVotes.size === 0) {
+    return;
+  }
+  const humans = room.players.filter((p) => !p.isBot && !p.disconnected);
+  const votes = humans.filter((p) => room.rematchVotes.has(p.token)).length;
+  if (humans.length < MIN_PLAYERS) {
+    room.rematchVotes = new Set();
+    io.to(roomCode).emit("rematchUpdate", { votes: 0, required: humans.length, expired: true });
+  } else if (votes >= humans.length) {
+    room.rematchVotes = new Set();
+    startRoomGame(roomCode, room.handSize);
+  } else {
+    io.to(roomCode).emit("rematchUpdate", { votes, required: humans.length });
+  }
+}
+
 function removePlayerFromRoom(socketId) {
   const roomCode = Object.keys(rooms).find((code) =>
     rooms[code].players.some((player) => player.id === socketId)
@@ -960,21 +981,7 @@ function removePlayerFromRoom(socketId) {
     emitGameState(roomCode);
   } else {
     emitLobby(roomCode);
-    // Re-check a pending rematch so survivors aren't stuck waiting for a seat
-    // that just left; cancel if too few humans remain to play.
-    if (room.rematchVotes && room.rematchVotes.size > 0) {
-      const humans = room.players.filter((p) => !p.isBot && !p.disconnected);
-      const votes = humans.filter((p) => room.rematchVotes.has(p.token)).length;
-      if (humans.length < MIN_PLAYERS) {
-        room.rematchVotes = new Set();
-        io.to(roomCode).emit("rematchUpdate", { votes: 0, required: humans.length, expired: true });
-      } else if (votes >= humans.length) {
-        room.rematchVotes = new Set();
-        startRoomGame(roomCode, room.handSize);
-      } else {
-        io.to(roomCode).emit("rematchUpdate", { votes, required: humans.length });
-      }
-    }
+    recheckRematch(roomCode);
   }
 }
 
@@ -1154,6 +1161,12 @@ io.on("connection", (socket) => {
     socket.join(normalizedCode);
     socket.emit("session", { token: player.token, roomCode: normalizedCode });
     socket.emit("joinedRoom", normalizedCode);
+    // If the lobby's host is a dead/bot seat, promote a live human so the room
+    // is startable by someone who's actually present (H2).
+    const currentHost = room.players.find((p) => p.id === room.hostId);
+    if (!currentHost || currentHost.isBot || currentHost.disconnected) {
+      assignHostIfNeeded(normalizedCode, room.hostId);
+    }
     emitLobby(normalizedCode);
   });
 
@@ -1594,6 +1607,8 @@ io.on("connection", (socket) => {
         room.pendingHostToken = player.token;
       }
       assignHostIfNeeded(code, player.id);
+      // A disconnecting player may unblock (or expire) a pending rematch (R2).
+      recheckRematch(code);
     }
 
     const grace = room.started ? RECONNECT_GRACE_MS : LOBBY_GRACE_MS;
