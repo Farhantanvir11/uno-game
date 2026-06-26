@@ -6,8 +6,13 @@ const dbApi = require("./db");
 
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer);
+const io = new Server(httpServer, {
+  // Cap per-message payload size (default 1e6) to limit per-connection memory.
+  maxHttpBufferSize: 1e5,
+  cors: { origin: allowOrigin, methods: ["GET", "POST"] }
+});
 
+app.use(setSecurityHeaders);
 app.use(express.static("public"));
 
 const PORT = Number.parseInt(process.env.PORT, 10) || 3000;
@@ -27,6 +32,107 @@ const ROOM_IDLE_LIMIT_MS  = 60 * 60 * 1000;
 // converted to a bot), auto-resolve so the game can't freeze on the modal forever.
 const DECK_DECISION_TIMEOUT_MS = process.env.DECK_DECISION_TIMEOUT_MS ? Number(process.env.DECK_DECISION_TIMEOUT_MS) : 30 * 1000;
 const rooms = {};
+
+// ---------------------------------------------------------------------------
+// Security & abuse-limiting configuration (audit: L1 headers/CSP, M3 socket
+// limits, M4 CORS, M1/M2 rate limiting, H5 room cap).
+// ---------------------------------------------------------------------------
+const DEPLOY_ORIGIN = (process.env.DEPLOY_ORIGIN || "https://last-card-battle.onrender.com").replace(/\/+$/, "");
+const EXTRA_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
+  .split(",").map((s) => s.trim()).filter(Boolean);
+// Origins allowed to open a Socket.IO connection / load the app.
+const ORIGIN_ALLOWLIST = new Set([
+  DEPLOY_ORIGIN,
+  "https://localhost",        // Capacitor bundled content (androidScheme: https)
+  "http://localhost",
+  "http://localhost:3000",    // local dev
+  "http://127.0.0.1:3000",
+  "capacitor://localhost",    // legacy Capacitor scheme
+  ...EXTRA_ORIGINS
+]);
+const MAX_ROOMS = Number(process.env.MAX_ROOMS) || 250;
+// High default on purpose: mobile carriers use CGNAT, so many real players can
+// share one public IP. This is a backstop against blatant floods, not a tight
+// per-user cap — tune via MAX_SOCKETS_PER_IP if needed.
+const MAX_SOCKETS_PER_IP = Number(process.env.MAX_SOCKETS_PER_IP) || 50;
+const CSP_DISABLED = process.env.CSP_DISABLED === "1";
+
+// Client IP. Prefer X-Forwarded-For (set by Render/Fly's TLS-terminating proxy)
+// so the limits see the real client instead of the proxy's address.
+function ipOf(socket) {
+  const h = (socket && socket.handshake) || {};
+  const xff = h.headers && h.headers["x-forwarded-for"];
+  if (typeof xff === "string" && xff.trim()) {
+    return xff.split(",")[0].trim();
+  }
+  return h.address || (socket && socket.conn && socket.conn.remoteAddress) || "unknown";
+}
+
+// Socket.IO CORS gate: allow listed origins; non-browser clients (no Origin)
+// are accepted (server-side tooling/tests). Browsers always send Origin.
+function allowOrigin(origin, cb) {
+  if (!origin) return cb(null, true);
+  cb(null, ORIGIN_ALLOWLIST.has(origin));
+}
+
+// Security headers + CSP. script-src/style-src keep 'unsafe-inline' because
+// index.html uses inline onclick handlers (a strict CSP would break the UI) —
+// but connect-src is pinned to known origins, so any injected script still
+// can't exfiltrate the device id / session token to an attacker's domain.
+// Set CSP_DISABLED=1 to drop the CSP header only (other headers stay).
+function setSecurityHeaders(req, res, next) {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
+  if (req.secure || String(req.headers["x-forwarded-proto"] || "").includes("https")) {
+    res.setHeader("Strict-Transport-Security", "max-age=15552000");
+  }
+  if (!CSP_DISABLED) {
+    const host = DEPLOY_ORIGIN.replace(/^https?:\/\//, "");
+    res.setHeader("Content-Security-Policy", [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com data:",
+      "img-src 'self' data: blob:",
+      "media-src 'self' data: blob:",
+      `connect-src 'self' ${DEPLOY_ORIGIN} wss://${host} https://fonts.googleapis.com https://fonts.gstatic.com`,
+      "frame-ancestors 'none'"
+    ].join("; "));
+  }
+  next();
+}
+
+// Fixed-window, per-(ip+action) rate limiter.
+function makeRateLimiter() {
+  const buckets = new Map();
+  return function allow(socket, action, max, windowMs) {
+    const now = Date.now();
+    const key = `${ipOf(socket)}|${action}`;
+    let b = buckets.get(key);
+    if (!b || now > b.resetAt) {
+      b = { count: 0, resetAt: now + windowMs };
+      buckets.set(key, b);
+    }
+    b.count += 1;
+    if (buckets.size > 8000) {          // lazy sweep so the map can't grow forever
+      for (const [k, v] of buckets) if (v.resetAt < now) buckets.delete(k);
+    }
+    return b.count <= max;
+  };
+}
+const rateAllow = makeRateLimiter();
+function rateLimited(socket, action, max, windowMs) {
+  if (!rateAllow(socket, action, max, windowMs)) {
+    sendError(socket, "Too many requests — please slow down.");
+    return true;
+  }
+  return false;
+}
+
+// Per-IP live-socket counter for the connection-flood cap.
+const socketsByIp = new Map();
 
 function makeToken() {
   return crypto.randomBytes(16).toString("hex");
@@ -986,9 +1092,24 @@ function removePlayerFromRoom(socketId) {
 }
 
 io.on("connection", (socket) => {
+  // Per-IP concurrent-connection cap (DoS backstop). See MAX_SOCKETS_PER_IP.
+  const connIp = ipOf(socket);
+  const connIpCount = (socketsByIp.get(connIp) || 0) + 1;
+  if (connIpCount > MAX_SOCKETS_PER_IP) {
+    socket.disconnect(true);
+    return;
+  }
+  socketsByIp.set(connIp, connIpCount);
+  socket.on("disconnect", () => {
+    const c = socketsByIp.get(connIp);
+    if (c === undefined) return;
+    if (c <= 1) socketsByIp.delete(connIp); else socketsByIp.set(connIp, c - 1);
+  });
+
   // ----- Anonymous device login -----
   // Establishes a stable userId for this socket; required for stats persistence.
   socket.on("loginDevice", async ({ deviceId, name, deviceLabel } = {}) => {
+    if (rateLimited(socket, "login", 6, 60000)) return;
     if (!dbApi.isValidDeviceId(deviceId)) {
       socket.emit("loginError", "invalid_device_id");
       return;
@@ -1022,6 +1143,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("updateProfile", async ({ name, avatar } = {}) => {
+    if (rateLimited(socket, "profile", 10, 60000)) return;
     const userId = socket.data && socket.data.userId;
     if (!userId) {
       socket.emit("loginError", "not_logged_in");
@@ -1061,6 +1183,7 @@ io.on("connection", (socket) => {
   // Bot games run client-side, so the server never sees finishGame() for them —
   // the client posts the result here so leaderboard/stats stay accurate.
   socket.on("recordBotResult", async ({ won, cardsPlayed } = {}) => {
+    if (rateLimited(socket, "botResult", 10, 60000)) return;
     const userId = socket.data && socket.data.userId;
     if (!userId) return;
     try {
@@ -1084,6 +1207,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("requestLeaderboard", async ({ limit } = {}) => {
+    if (rateLimited(socket, "leaderboard", 12, 60000)) return;
     try {
       const rows = await dbApi.getLeaderboard(limit);
       socket.emit("leaderboard", { rows, myUserId: socket.data?.userId || null });
@@ -1094,6 +1218,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("createRoom", (playerName) => {
+    if (rateLimited(socket, "createRoom", 10, 60000)) return;
+    if (Object.keys(rooms).length >= MAX_ROOMS) {
+      sendError(socket, "Server is full — please try again in a moment.");
+      return;
+    }
     const roomCode = generateRoomCode();
     const player = createPlayer(socket, playerName);
 
@@ -1122,6 +1251,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("joinRoom", ({ roomCode, playerName }) => {
+    if (rateLimited(socket, "joinRoom", 20, 60000)) return;
     const normalizedCode = (roomCode || "").trim().toUpperCase();
     const room = rooms[normalizedCode];
 
@@ -1172,6 +1302,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("startBotMatch", (payload) => {
+    if (rateLimited(socket, "startBot", 10, 60000)) return;
+    if (Object.keys(rooms).length >= MAX_ROOMS) {
+      sendError(socket, "Server is full — please try again in a moment.");
+      return;
+    }
     const playerName = typeof payload === "string" ? payload : payload?.name;
     const difficulty = (typeof payload === "object" && payload?.difficulty) || "normal";
     const roomCode = generateRoomCode();
@@ -1852,6 +1987,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("joinAsSpectator", ({ roomCode } = {}) => {
+    if (rateLimited(socket, "spectate", 20, 60000)) return;
     const code = (roomCode || "").trim().toUpperCase();
     const room = rooms[code];
     if (!room) {
