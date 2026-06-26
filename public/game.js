@@ -1022,7 +1022,7 @@ function updateLobby(room) {
           <img src="${url}" alt="" />
           ${isHost ? '<span class="slot-crown" title="Host">\u2605</span>' : ""}
         </div>
-        <div class="slot-name">${player.name}${isMe ? " (You)" : ""}</div>
+        <div class="slot-name">${_escapeHtml(player.name)}${isMe ? " (You)" : ""}</div>
         <div class="slot-tag">${isHost ? "Host" : "Ready"}</div>
       `;
     } else {
@@ -1944,7 +1944,7 @@ function renderPlayers(room) {
     const { url, color } = getAvatarFor(player);
 
     item.innerHTML = `
-      <div class="player-name">${player.name}${isMe ? " (You)" : ""}</div>
+      <div class="player-name">${_escapeHtml(player.name)}${isMe ? " (You)" : ""}</div>
       <div class="player-avatar" style="--avatar-bg:${color};">
         ${buildTimerRing()}
         <img class="avatar-face" src="${url}" alt="" />

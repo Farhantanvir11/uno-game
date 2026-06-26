@@ -1134,10 +1134,11 @@ io.on("connection", (socket) => {
     // AI-converted seat they can reclaim — if so, offer both rejoin & spectate.
     if (room.started) {
       const joiningUserId = (socket.data && socket.data.userId) || null;
-      const joiningName = dbApi.sanitizeName(playerName);
+      // Offer rejoin only to the seat's authenticated owner (userId match), never
+      // by display name — names are public and name-matching enabled seat hijack.
       const reclaimable = room.players.find((p) =>
         (p.disconnected || (p.isBot && p.wasHuman)) &&
-        (joiningUserId && p.userId === joiningUserId || joiningName && p.originalName === joiningName || joiningName && p.name === joiningName)
+        joiningUserId && p.userId === joiningUserId
       );
 
       if (reclaimable) {
@@ -1868,7 +1869,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("reclaimSeat", ({ roomCode, playerName } = {}) => {
+  socket.on("reclaimSeat", ({ roomCode } = {}) => {
     const code = (roomCode || "").trim().toUpperCase();
     const room = rooms[code];
     if (!room || !room.started) {
@@ -1877,10 +1878,14 @@ io.on("connection", (socket) => {
     }
 
     const joiningUserId = (socket.data && socket.data.userId) || null;
-    const joiningName = dbApi.sanitizeName(playerName);
+    // Authorize reclaim only by the seat's authenticated userId — never by
+    // display name. Names are public (broadcast to the whole room), so matching
+    // on them let any peer steal a disconnected player's seat, hand, turn, and
+    // host status. Anonymous sockets (no loginDevice) have no userId and cannot
+    // reclaim here; they reconnect via resumeSession (token) instead.
     const reclaimable = room.players.find((p) =>
       (p.disconnected || (p.isBot && p.wasHuman)) &&
-      (joiningUserId && p.userId === joiningUserId || joiningName && p.originalName === joiningName || joiningName && p.name === joiningName)
+      joiningUserId && p.userId === joiningUserId
     );
 
     if (!reclaimable) {
