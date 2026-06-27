@@ -5,6 +5,9 @@ const { Server } = require("socket.io");
 const dbApi = require("./db");
 
 const app = express();
+// Behind Render/Fly's single TLS-terminating proxy — trust one X-Forwarded-*
+// hop so proxy-supplied headers (proto, for) are honored by Express logic.
+app.set("trust proxy", 1);
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   // Cap per-message payload size (default 1e6) to limit per-connection memory.
@@ -55,15 +58,22 @@ const MAX_ROOMS = Number(process.env.MAX_ROOMS) || 250;
 // share one public IP. This is a backstop against blatant floods, not a tight
 // per-user cap — tune via MAX_SOCKETS_PER_IP if needed.
 const MAX_SOCKETS_PER_IP = Number(process.env.MAX_SOCKETS_PER_IP) || 50;
+// IP-independent hard backstop on total concurrent sockets, so connection
+// exhaustion can't happen even if per-IP limits are evaded by rotating or
+// spoofing addresses.
+const MAX_TOTAL_SOCKETS = Number(process.env.MAX_TOTAL_SOCKETS) || 1000;
 const CSP_DISABLED = process.env.CSP_DISABLED === "1";
 
-// Client IP. Prefer X-Forwarded-For (set by Render/Fly's TLS-terminating proxy)
-// so the limits see the real client instead of the proxy's address.
+// Client IP. Behind Render/Fly's TLS-terminating proxy the real client IP is
+// the RIGHTMOST X-Forwarded-For hop (the proxy appends it; the client controls
+// only the leftmost, which we must NOT trust — else spoofing XFF defeats every
+// IP-based limit). Falls back to the raw peer when no XFF is present.
 function ipOf(socket) {
   const h = (socket && socket.handshake) || {};
   const xff = h.headers && h.headers["x-forwarded-for"];
   if (typeof xff === "string" && xff.trim()) {
-    return xff.split(",")[0].trim();
+    const parts = xff.split(",").map((s) => s.trim()).filter(Boolean);
+    if (parts.length) return parts[parts.length - 1];
   }
   return h.address || (socket && socket.conn && socket.conn.remoteAddress) || "unknown";
 }
@@ -95,9 +105,9 @@ function setSecurityHeaders(req, res, next) {
       "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com data:",
-      "img-src 'self' data: blob:",
+      "img-src 'self' data: blob: https://api.dicebear.com",
       "media-src 'self' data: blob:",
-      `connect-src 'self' ${DEPLOY_ORIGIN} wss://${host} https://fonts.googleapis.com https://fonts.gstatic.com`,
+      `connect-src 'self' ${DEPLOY_ORIGIN} wss://${host} ws://localhost:3000 ws://127.0.0.1:3000`,
       "frame-ancestors 'none'"
     ].join("; "));
   }
@@ -118,6 +128,12 @@ function makeRateLimiter() {
     b.count += 1;
     if (buckets.size > 8000) {          // lazy sweep so the map can't grow forever
       for (const [k, v] of buckets) if (v.resetAt < now) buckets.delete(k);
+      // Hard ceiling: if still too large (e.g. a flood of distinct in-window
+      // keys), drop the oldest buckets outright so memory stays bounded.
+      if (buckets.size > 16000) {
+        const oldest = [...buckets.entries()].sort((a, b) => a[1].resetAt - b[1].resetAt);
+        for (let i = 0; i < 4000 && i < oldest.length; i++) buckets.delete(oldest[i][0]);
+      }
     }
     return b.count <= max;
   };
@@ -1092,6 +1108,12 @@ function removePlayerFromRoom(socketId) {
 }
 
 io.on("connection", (socket) => {
+  // Global connection backstop (IP-independent): bounds total memory/fd use
+  // even if per-IP limits are evaded by rotating or spoofing addresses.
+  if (io.engine.clientsCount > MAX_TOTAL_SOCKETS) {
+    socket.disconnect(true);
+    return;
+  }
   // Per-IP concurrent-connection cap (DoS backstop). See MAX_SOCKETS_PER_IP.
   const connIp = ipOf(socket);
   const connIpCount = (socketsByIp.get(connIp) || 0) + 1;
@@ -1169,6 +1191,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("requestStats", async () => {
+    if (rateLimited(socket, "stats", 20, 60000)) return;
     const userId = socket.data && socket.data.userId;
     if (!userId) return;
     try {
