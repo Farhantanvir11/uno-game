@@ -1259,8 +1259,10 @@ io.on("connection", (socket) => {
       .map((code) => {
         const r = rooms[code];
         if (r.visibility === "public") {
+          const host = r.players.find((p) => p.id === r.hostId);
           return {
             roomCode: code,
+            hostName: host ? host.name : "Host",
             playerCount: r.players.length,
             started: !!r.started,
             spectatorCount: r.spectators ? r.spectators.size : 0

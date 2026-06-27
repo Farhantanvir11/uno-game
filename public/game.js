@@ -3256,13 +3256,14 @@ socket.on("publicRooms", (rows) => {
       </div>`;
     }
     const code = _escapeHtml(r.roomCode);
+    const host = _escapeHtml(r.hostName || "Host");
     const meta = `${r.playerCount}/5${r.started ? " · Playing" : " · Open"}${r.spectatorCount ? ` · ${r.spectatorCount} 👁` : ""}`;
     const full = r.playerCount >= 5 && !r.started;
     const action = r.started
       ? `<button class="lb-join-btn" data-code="${code}" data-action="watch">Watch Live</button>`
       : `<button class="lb-join-btn" data-code="${code}" data-action="join"${full ? " disabled" : ""}>Join</button>`;
     return `<div class="lb-row room-card">
-      <span class="lb-col-name">Room ${code}</span>
+      <span class="lb-col-name">${host}'s Room</span>
       <span class="lb-col-meta">${meta}</span>
       <span class="lb-col-action">${action}</span>
     </div>`;
