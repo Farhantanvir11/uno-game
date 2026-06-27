@@ -2397,6 +2397,7 @@ socket.on("invalidMove", (message) => {
 // the player on a frozen board with stale state.
 function resetGameState() {
   clearInterval(timerInterval);
+  if (roomBrowserPoll) { clearInterval(roomBrowserPoll); roomBrowserPoll = null; }
   stopSound("timerTick");
   currentRoom = null;
   roomCode = null;
@@ -3229,7 +3230,7 @@ function openRoomBrowser() {
   el.style.display = "flex";
   const list = document.getElementById("roomBrowserList");
   if (list) list.innerHTML = '<div class="lb-empty">Loading rooms…</div>';
-  const fetchRooms = () => { try { socket.emit("listPublicRooms"); } catch {} };
+  const fetchRooms = () => { if (_realSocket.connected) { try { socket.emit("listPublicRooms"); } catch {} } };
   fetchRooms();
   if (roomBrowserPoll) clearInterval(roomBrowserPoll);
   roomBrowserPoll = setInterval(fetchRooms, 5000);

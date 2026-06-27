@@ -2071,9 +2071,10 @@ io.on("connection", (socket) => {
       sendError(socket, "Room not found.");
       return;
     }
-    // Private rooms cannot be spectated — even with the code.
+    // Private rooms cannot be spectated — even with the code. Mask as "not found"
+    // so a code-guesser can't confirm a private room exists via this path.
     if (room.visibility === "private") {
-      sendError(socket, "This room is private and cannot be spectated.");
+      sendError(socket, "Room not found.");
       return;
     }
     // Cap the audience: each spectator receives full game-state broadcasts.
@@ -2091,11 +2092,11 @@ io.on("connection", (socket) => {
     room.spectators.set(socket.id, safeName);
     socket.join(code);
     socket.emit("spectatorJoined", code);
-    socket.emit("lobbyUpdated", getSafeRoom(code));
     if (room.started) {
       socket.emit("updateGame", getSafeRoom(code));
     }
-    // Broadcast the updated count + name list to everyone in the room.
+    // Broadcast the updated count + name list to everyone in the room
+    // (emitLobby also delivers lobbyUpdated to the joiner, who is now in the room).
     emitLobby(code);
     io.to(code).emit("spectators", spectatorList(room));
   });
