@@ -762,7 +762,7 @@ socket.on("spectateOffered", ({ roomCode: code, reason }) => {
     ? "That match is already in progress."
     : "That room is already full.";
   if (!confirm(`${reasonText}\n\nJoin as spectator?`)) return;
-  socket.emit("joinAsSpectator", { roomCode: code });
+  socket.emit("joinAsSpectator", { roomCode: code, spectatorName: getNameValue() });
 });
 
 socket.on("reconnectOffered", ({ roomCode: code, canRejoin }) => {
@@ -771,11 +771,11 @@ socket.on("reconnectOffered", ({ roomCode: code, canRejoin }) => {
     if (choice) {
       socket.emit("reclaimSeat", { roomCode: code, playerName: getNameValue() });
     } else {
-      socket.emit("joinAsSpectator", { roomCode: code });
+      socket.emit("joinAsSpectator", { roomCode: code, spectatorName: getNameValue() });
     }
   } else {
     if (!confirm("That match is already in progress.\n\nJoin as spectator?")) return;
-    socket.emit("joinAsSpectator", { roomCode: code });
+    socket.emit("joinAsSpectator", { roomCode: code, spectatorName: getNameValue() });
   }
 });
 
@@ -983,6 +983,20 @@ function updateLobby(room) {
   });
   document.getElementById("cardCountPills")?.classList.toggle("is-locked", !isHost);
 
+  // Room visibility toggle (host-only; hidden for bot/solo matches).
+  const visSection = document.querySelector(".lobby-visibility");
+  if (visSection) visSection.style.display = room.soloMode ? "none" : "";
+  const visGroup = document.getElementById("visibilityGroup");
+  if (visGroup) {
+    visGroup.classList.toggle("is-locked", !isHost);
+    const vis = room.visibility || "private";
+    visGroup.querySelectorAll(".lobby-pill").forEach((p) => {
+      p.classList.toggle("is-active", p.dataset.value === vis);
+    });
+  }
+
+  updateSpectatorCount(room.spectatorCount || 0);
+
   // Live-sync settings from the host so every member sees the same rules.
   if (!isHost) {
     if (room.rules) {
@@ -1169,6 +1183,13 @@ function broadcastLobbySettings() {
   document.addEventListener("change", (e) => {
     if (e.target && e.target.id === id) broadcastLobbySettings();
   });
+});
+
+document.getElementById("visibilityGroup")?.addEventListener("click", (e) => {
+  const pill = e.target.closest(".lobby-pill");
+  if (!pill) return;
+  if (!currentRoom || currentRoom.hostId !== socket.id) return;
+  socket.emit("setRoomVisibility", { roomCode, visibility: pill.dataset.value });
 });
 
 function startTurnTimer(turnEndsAt) {
@@ -2229,6 +2250,8 @@ socket.on("roomCreated", (code) => {
 
 socket.on("joinedRoom", (code) => {
   roomCode = code;
+  isSpectator = false;
+  document.body.classList.remove("is-spectator");
   setScreen("lobby");
 });
 
@@ -2288,6 +2311,7 @@ socket.on("yourCards", (cards) => {
 });
 
 socket.on("updateGame", (room) => {
+  updateSpectatorCount(room.spectatorCount || 0);
   // Detect an opponent card play: top card changed AND it wasn't our own play.
   // lastTurnPlayerId = active player from PREVIOUS update.
   // After a play, turn has already advanced, so previous-update's active was the player who just played.
@@ -3196,6 +3220,95 @@ function closeLeaderboard() {
   if (LEADERBD_EL) LEADERBD_EL.style.display = "none";
 }
 
+// ----- Room Browser -----
+let roomBrowserPoll = null;
+function openRoomBrowser() {
+  unlockAudio();
+  const el = document.getElementById("roomBrowserModal");
+  if (!el) return;
+  el.style.display = "flex";
+  const list = document.getElementById("roomBrowserList");
+  if (list) list.innerHTML = '<div class="lb-empty">Loading rooms…</div>';
+  const fetchRooms = () => { try { socket.emit("listPublicRooms"); } catch {} };
+  fetchRooms();
+  if (roomBrowserPoll) clearInterval(roomBrowserPoll);
+  roomBrowserPoll = setInterval(fetchRooms, 5000);
+}
+function closeRoomBrowser() {
+  const el = document.getElementById("roomBrowserModal");
+  if (el) el.style.display = "none";
+  if (roomBrowserPoll) { clearInterval(roomBrowserPoll); roomBrowserPoll = null; }
+}
+
+socket.on("publicRooms", (rows) => {
+  const list = document.getElementById("roomBrowserList");
+  if (!list) return;
+  if (!Array.isArray(rows) || !rows.length) {
+    list.innerHTML = '<div class="lb-empty">No live rooms right now.</div>';
+    return;
+  }
+  list.innerHTML = rows.map((r) => {
+    if (r.private) {
+      const label = r.started ? "Room is playing a match" : "Private Room";
+      return `<div class="lb-row room-card is-private">
+        <span class="lb-col-name">🔒 ${label}</span>
+      </div>`;
+    }
+    const code = _escapeHtml(r.roomCode);
+    const meta = `${r.playerCount}/5${r.started ? " · Playing" : " · Open"}${r.spectatorCount ? ` · ${r.spectatorCount} 👁` : ""}`;
+    const full = r.playerCount >= 5 && !r.started;
+    const action = r.started
+      ? `<button class="lb-join-btn" data-code="${code}" data-action="watch">Watch Live</button>`
+      : `<button class="lb-join-btn" data-code="${code}" data-action="join"${full ? " disabled" : ""}>Join</button>`;
+    return `<div class="lb-row room-card">
+      <span class="lb-col-name">Room ${code}</span>
+      <span class="lb-col-meta">${meta}</span>
+      <span class="lb-col-action">${action}</span>
+    </div>`;
+  }).join("");
+});
+
+document.getElementById("roomBrowserList")?.addEventListener("click", (e) => {
+  const btn = e.target.closest(".lb-join-btn");
+  if (!btn || btn.disabled) return;
+  const code = btn.dataset.code;
+  if (!code) return;
+  const name = getNameValue();
+  if (btn.dataset.action === "watch") {
+    socket.emit("joinAsSpectator", { roomCode: code, spectatorName: name });
+  } else {
+    socket.emit("joinRoom", { roomCode: code, playerName: name });
+  }
+  closeRoomBrowser();
+});
+
+// ----- Spectator count chip + list popup -----
+function updateSpectatorCount(count) {
+  const chip = document.getElementById("spectatorChip");
+  const cnt = document.getElementById("spectatorChipCount");
+  if (!chip || !cnt) return;
+  const n = Number(count) || 0;
+  cnt.textContent = String(n);
+  chip.style.display = n > 0 ? "inline-flex" : "none";
+}
+function openSpectatorList() {
+  unlockAudio();
+  const el = document.getElementById("spectatorListModal");
+  if (el) el.style.display = "flex";
+}
+function closeSpectatorList() {
+  const el = document.getElementById("spectatorListModal");
+  if (el) el.style.display = "none";
+}
+socket.on("spectators", (list) => {
+  const body = document.getElementById("spectatorListBody");
+  if (!body) return;
+  const arr = Array.isArray(list) ? list : [];
+  body.innerHTML = arr.length
+    ? arr.map((s) => `<div class="lb-row spec-row"><span class="lb-col-name">👤 ${_escapeHtml(s.name)}</span></div>`).join("")
+    : '<div class="lb-empty">No spectators.</div>';
+});
+
 function _escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -3320,6 +3433,8 @@ function handleHardwareBack() {
     { el: document.getElementById("tutorialModal"),     close: () => closeTutorial()    },
     { el: document.getElementById("botDifficultyModal"),close: () => closeBotDifficulty()},
     { el: document.getElementById("leaderboardModal"),  close: () => closeLeaderboard() },
+    { el: document.getElementById("roomBrowserModal"),  close: () => closeRoomBrowser() },
+    { el: document.getElementById("spectatorListModal"),close: () => closeSpectatorList() },
     { el: document.getElementById("colorPicker"),       close: () => {
         document.getElementById("colorPicker").style.display = "none";
         // Reset pending wild-card state so the card returns to hand cleanly.

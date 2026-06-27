@@ -3261,7 +3261,8 @@ body.is-spectator #unoBtn,
 body.is-spectator .your-turn-banner,
 body.is-spectator #startBtn,
 body.is-spectator .lobby-rules,
-body.is-spectator .lobby-settings { display: none !important; }
+body.is-spectator .lobby-settings,
+body.is-spectator .lobby-visibility { display: none !important; }
 
 body.is-spectator #roomLabel::after {
   content: "👀 Spectating";
@@ -3290,6 +3291,59 @@ body.is-spectator #roomLabel::after {
   font-size: 0.78rem;
   font-weight: 600;
 }
+/* Tappable spectator-count chip in the in-game HUD (reuses .lobby-spectators). */
+.spectator-chip {
+  border: 0;
+  margin-left: 0;
+  cursor: pointer;
+  transition: background .15s ease, transform .12s ease;
+}
+.spectator-chip:hover { background: rgba(255, 255, 255, 0.12); }
+.spectator-chip:active { transform: scale(0.96); }
+
+/* -------- Room Browser cards -------- */
+.room-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  margin-bottom: 8px;
+  color: #f1f5ff;
+}
+.room-card .lb-col-name { flex: 1 1 auto; min-width: 0; font-weight: 600; }
+.room-card .lb-col-meta {
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.62);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.room-card .lb-col-action { flex: 0 0 auto; }
+.room-card.is-private { opacity: 0.6; cursor: default; font-style: italic; }
+.lb-join-btn {
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-family: "Fredoka", "Nunito", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: #1a1a1a;
+  background: linear-gradient(180deg, #ffe680, #f5b400);
+  box-shadow: 0 4px 12px rgba(245, 180, 0, 0.3);
+  transition: transform .12s ease, box-shadow .15s ease;
+}
+.lb-join-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(245, 180, 0, 0.4); }
+.lb-join-btn:active { transform: translateY(0) scale(0.97); }
+.lb-join-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
+.room-browser-list { max-height: 60vh; overflow-y: auto; }
+.spec-row { margin-bottom: 6px; }
+
+/* -------- Lobby visibility toggle -------- */
+.lobby-visibility .rule-hint { margin: 8px 2px 0; }
 
 /* -------- Lobby house rules -------- */
 .lobby-rules .rules-toggles {

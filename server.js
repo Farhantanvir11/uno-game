@@ -62,6 +62,9 @@ const MAX_SOCKETS_PER_IP = Number(process.env.MAX_SOCKETS_PER_IP) || 50;
 // exhaustion can't happen even if per-IP limits are evaded by rotating or
 // spoofing addresses.
 const MAX_TOTAL_SOCKETS = Number(process.env.MAX_TOTAL_SOCKETS) || 1000;
+// Cap spectators per room: each one receives full game-state broadcasts every
+// turn, so an unbounded audience on a public room amplifies outbound traffic.
+const MAX_SPECTATORS = Number(process.env.MAX_SPECTATORS) || 20;
 const CSP_DISABLED = process.env.CSP_DISABLED === "1";
 
 // Client IP. Behind Render/Fly's TLS-terminating proxy the real client IP is
@@ -280,6 +283,7 @@ function getSafeRoom(roomCode) {
       room.challengeContext &&
       room.challengeContext.playerId
     ),
+    visibility: room.visibility || "private",
     spectatorCount: room.spectators ? room.spectators.size : 0,
     turnEndsAt: room.turnEndsAt || null,
     turnDuration: room.currentTurnDuration || TURN_DURATION_MS,
@@ -287,6 +291,13 @@ function getSafeRoom(roomCode) {
     canShuffleDeck: room.discard.length > 1,
     deckCount: room.deck ? room.deck.length : 0
   };
+}
+
+// Public projection of current spectators (names only — socket ids stay
+// server-side so they are never leaked to clients).
+function spectatorList(room) {
+  if (!room.spectators || !room.spectators.size) return [];
+  return [...room.spectators.values()].map((name) => ({ name }));
 }
 
 function emitLobby(roomCode) {
@@ -968,6 +979,7 @@ function removeSpectator(socketId) {
     if (room.spectators && room.spectators.has(socketId)) {
       room.spectators.delete(socketId);
       emitLobby(code);
+      io.to(code).emit("spectators", spectatorList(room));
     }
   });
 }
@@ -1240,6 +1252,26 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("listPublicRooms", () => {
+    if (rateLimited(socket, "listRooms", 20, 60000)) return;
+    const rows = Object.keys(rooms)
+      .filter((code) => !rooms[code].soloMode) // never list bot/solo rooms
+      .map((code) => {
+        const r = rooms[code];
+        if (r.visibility === "public") {
+          return {
+            roomCode: code,
+            playerCount: r.players.length,
+            started: !!r.started,
+            spectatorCount: r.spectators ? r.spectators.size : 0
+          };
+        }
+        // Private room: opaque card — no code, players, or count.
+        return { private: true, started: !!r.started };
+      });
+    socket.emit("publicRooms", rows);
+  });
+
   socket.on("createRoom", (playerName) => {
     if (rateLimited(socket, "createRoom", 10, 60000)) return;
     if (Object.keys(rooms).length >= MAX_ROOMS) {
@@ -1255,6 +1287,7 @@ io.on("connection", (socket) => {
       started: false,
       handSize: DEFAULT_HAND_SIZE,
       soloMode: false,
+      visibility: "private",
       turn: 0,
       direction: 1,
       stackCount: 0,
@@ -1300,11 +1333,20 @@ io.on("connection", (socket) => {
         return;
       }
 
+      // No seat to reclaim. Private rooms reject; public rooms may spectate.
+      if (room.visibility === "private") {
+        sendError(socket, "This room is private.");
+        return;
+      }
       socket.emit("reconnectOffered", { roomCode: normalizedCode, canRejoin: false });
       return;
     }
 
     if (room.players.length >= MAX_PLAYERS) {
+      if (room.visibility === "private") {
+        sendError(socket, "Room is full.");
+        return;
+      }
       socket.emit("spectateOffered", { roomCode: normalizedCode, reason: "full" });
       return;
     }
@@ -1341,6 +1383,7 @@ io.on("connection", (socket) => {
       started: false,
       handSize: DEFAULT_HAND_SIZE,
       soloMode: true,
+      visibility: "private",
       lastActivityAt: Date.now(),
       // Defaults match multiplayer; the host can toggle them in the lobby before starting.
       rules: {
@@ -1382,6 +1425,17 @@ io.on("connection", (socket) => {
       if ([5, 7, 10].includes(n)) room.handSize = n;
     }
     emitLobby(roomCode);
+  });
+
+  socket.on("setRoomVisibility", ({ roomCode, visibility } = {}) => {
+    if (rateLimited(socket, "setVisibility", 20, 60000)) return;
+    const code = (roomCode || "").trim().toUpperCase();
+    const room = rooms[code];
+    if (!room || room.started) return;      // no toggling mid-match
+    if (room.hostId !== socket.id) return;   // host-only
+    if (room.soloMode) return;               // bot rooms can never be public
+    room.visibility = visibility === "public" ? "public" : "private";
+    emitLobby(code);
   });
 
   socket.on("startGame", ({ roomCode, cards, rules }) => {
@@ -2009,7 +2063,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("joinAsSpectator", ({ roomCode } = {}) => {
+  socket.on("joinAsSpectator", ({ roomCode, spectatorName } = {}) => {
     if (rateLimited(socket, "spectate", 20, 60000)) return;
     const code = (roomCode || "").trim().toUpperCase();
     const room = rooms[code];
@@ -2017,15 +2071,33 @@ io.on("connection", (socket) => {
       sendError(socket, "Room not found.");
       return;
     }
+    // Private rooms cannot be spectated — even with the code.
+    if (room.visibility === "private") {
+      sendError(socket, "This room is private and cannot be spectated.");
+      return;
+    }
+    // Cap the audience: each spectator receives full game-state broadcasts.
+    const curCount = room.spectators ? room.spectators.size : 0;
+    if (curCount >= MAX_SPECTATORS) {
+      sendError(socket, "Spectator limit reached for this room.");
+      return;
+    }
 
-    if (!room.spectators) room.spectators = new Set();
-    room.spectators.add(socket.id);
+    const safeName = dbApi.sanitizeName(
+      spectatorName,
+      `Spectator${Math.floor(Math.random() * 9000) + 1000}`
+    );
+    if (!room.spectators) room.spectators = new Map();
+    room.spectators.set(socket.id, safeName);
     socket.join(code);
     socket.emit("spectatorJoined", code);
     socket.emit("lobbyUpdated", getSafeRoom(code));
     if (room.started) {
       socket.emit("updateGame", getSafeRoom(code));
     }
+    // Broadcast the updated count + name list to everyone in the room.
+    emitLobby(code);
+    io.to(code).emit("spectators", spectatorList(room));
   });
 
   socket.on("reclaimSeat", ({ roomCode } = {}) => {

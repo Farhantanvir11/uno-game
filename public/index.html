@@ -46,6 +46,12 @@
 
       <!-- Action icons inside the image's top-right corner -->
       <div class="top-actions">
+        <button class="top-action-btn" type="button" onclick="openRoomBrowser()" aria-label="Browse Rooms" title="Browse Rooms">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
         <button class="top-action-btn" type="button" onclick="openLeaderboard()" aria-label="Leaderboard" title="Leaderboard">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/>
@@ -203,6 +209,36 @@
     </div>
   </div>
 
+  <!-- ========== ROOM BROWSER ========== -->
+  <div id="roomBrowserModal" class="settings-overlay" style="display:none;" onclick="if(event.target===this) closeRoomBrowser()">
+    <div class="settings-card">
+      <button class="tutorial-close" type="button" onclick="closeRoomBrowser()" aria-label="Close">&times;</button>
+      <div class="settings-header">
+        <div class="settings-glow"></div>
+        <h3 class="settings-title">Live Rooms</h3>
+        <p class="settings-sub">Join an open match or watch live</p>
+      </div>
+      <div id="roomBrowserList" class="lb-list room-browser-list">
+        <div class="lb-empty">Loading rooms…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== SPECTATOR LIST ========== -->
+  <div id="spectatorListModal" class="settings-overlay" style="display:none;" onclick="if(event.target===this) closeSpectatorList()">
+    <div class="settings-card spectator-card">
+      <button class="tutorial-close" type="button" onclick="closeSpectatorList()" aria-label="Close">&times;</button>
+      <div class="settings-header">
+        <div class="settings-glow"></div>
+        <h3 class="settings-title">Watching Now</h3>
+        <p class="settings-sub">Spectators in this match</p>
+      </div>
+      <div id="spectatorListBody" class="lb-list">
+        <div class="lb-empty">No spectators.</div>
+      </div>
+    </div>
+  </div>
+
   <!-- ========== NAME PROMPT (first-time only) ========== -->
   <div id="namePromptModal" class="settings-overlay" style="display:none;">
     <div class="settings-card name-prompt-card">
@@ -348,6 +384,15 @@
         </div>
       </div>
 
+      <div class="lobby-section lobby-visibility">
+        <label class="lobby-section-title">Room visibility</label>
+        <div class="lobby-pill-group" id="visibilityGroup">
+          <button type="button" class="lobby-pill is-active" data-value="private">🔒 Private</button>
+          <button type="button" class="lobby-pill" data-value="public">🌐 Public</button>
+        </div>
+        <p class="rule-hint">Public rooms appear in the Room Browser so anyone can join or watch. Private rooms are invite-only.</p>
+      </div>
+
       <button id="startBtn" class="lobby-start-btn" onclick="startGame()">
         <span>Start Game</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
@@ -375,6 +420,9 @@
     <div class="hud">
       <div id="roomLabel"></div>
       <div class="hud-meta">
+        <button id="spectatorChip" class="lobby-spectators spectator-chip" type="button" onclick="openSpectatorList()" title="Spectators" aria-label="Spectators" style="display:none;">
+          <span id="spectatorChipCount">0</span><span aria-hidden="true"> 👁</span>
+        </button>
         <button id="settingsBtn" class="hud-btn hud-icon-btn" onclick="openSettings()" title="Settings" aria-label="Settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="3"/>
