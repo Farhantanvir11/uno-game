@@ -3302,7 +3302,7 @@ body.is-spectator #roomLabel::after {
 .spectator-chip:active { transform: scale(0.96); }
 
 /* -------- Room Browser cards -------- */
-.room-card {
+.lb-row.room-card {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -3313,7 +3313,16 @@ body.is-spectator #roomLabel::after {
   margin-bottom: 8px;
   color: #f1f5ff;
 }
-.room-card .lb-col-name { flex: 1 1 auto; min-width: 0; font-weight: 600; }
+.room-card .lb-col-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: normal;
+  overflow-wrap: normal;
+}
 .room-card .lb-col-meta {
   flex: 0 0 auto;
   font-size: 0.78rem;
@@ -3341,6 +3350,14 @@ body.is-spectator #roomLabel::after {
 .lb-join-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
 .room-browser-list { max-height: 60vh; overflow-y: auto; }
 .spec-row { margin-bottom: 6px; }
+.lb-row.spec-row { display: flex; align-items: center; }
+.spec-row .lb-col-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: normal;
+  overflow-wrap: normal;
+}
 
 /* -------- Lobby visibility toggle -------- */
 .lobby-visibility .rule-hint { margin: 8px 2px 0; }
