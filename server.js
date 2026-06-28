@@ -28,6 +28,9 @@ const DEFAULT_HAND_SIZE = 7;
 const RECONNECT_GRACE_MS  = 30 * 1000;
 // Lobby drop is more lenient: waiting players can refresh / change network freely.
 const LOBBY_GRACE_MS      = 60 * 1000;
+// Host reconnect reservation: if the host drops, the host role is held for them
+// for this long before transferring to anyone else (configurable, ~2-5 min).
+const HOST_RECONNECT_GRACE_MS = Number(process.env.HOST_RECONNECT_GRACE_MS) || 180000;
 // Idle-room garbage collection interval and threshold.
 const ROOM_GC_INTERVAL_MS = 5  * 60 * 1000;
 const ROOM_IDLE_LIMIT_MS  = 60 * 60 * 1000;
@@ -986,7 +989,11 @@ function removeSpectator(socketId) {
 
 function assignHostIfNeeded(roomCode, previousHostId) {
   const room = rooms[roomCode];
-  if (!room || room.hostId !== previousHostId) {
+  if (!room) return;
+  // Never promote while the host role is reserved (host may still return within
+  // HOST_RECONNECT_GRACE_MS). Legitimate transfers clear the reservation first.
+  if (room.hostReservedUntil && Date.now() <= room.hostReservedUntil) return;
+  if (room.hostId !== previousHostId) {
     return;
   }
 
@@ -1000,6 +1007,7 @@ function assignHostIfNeeded(roomCode, previousHostId) {
   }
 
   room.hostId = newHost.id;
+  room.hostToken = newHost.token; // re-anchor the permanent host on a real transfer
   if (!newHost.isBot) {
     io.to(roomCode).emit("hostChanged", {
       hostId: newHost.id,
@@ -1080,9 +1088,10 @@ function removePlayerFromRoom(socketId) {
 
   room.players.splice(index, 1);
 
-  // The original lobby host truly left — release any sticky-host claim (H1).
-  if (room.pendingHostToken && removed && room.pendingHostToken === removed.token) {
-    room.pendingHostToken = null;
+  // The host intentionally left (or their reservation expired and the seat was
+  // removed) — release the reservation so a new permanent host is promoted below.
+  if (removed && room.hostToken === removed.token) {
+    room.hostReservedUntil = 0;
   }
 
   if (room.players.length === 0 || room.players.every((player) => player.isBot)) {
@@ -1285,6 +1294,8 @@ io.on("connection", (socket) => {
 
     rooms[roomCode] = {
       hostId: socket.id,
+      hostToken: player.token,        // permanent host identity (stable across reconnects)
+      hostReservedUntil: 0,           // 0 = no active host-reconnect reservation
       players: [player],
       started: false,
       handSize: DEFAULT_HAND_SIZE,
@@ -1359,12 +1370,8 @@ io.on("connection", (socket) => {
     socket.join(normalizedCode);
     socket.emit("session", { token: player.token, roomCode: normalizedCode });
     socket.emit("joinedRoom", normalizedCode);
-    // If the lobby's host is a dead/bot seat, promote a live human so the room
-    // is startable by someone who's actually present (H2).
-    const currentHost = room.players.find((p) => p.id === room.hostId);
-    if (!currentHost || currentHost.isBot || currentHost.disconnected) {
-      assignHostIfNeeded(normalizedCode, room.hostId);
-    }
+    // NOTE: joining never transfers host. A disconnected host is reserved (not
+    // gone), and a truly-gone host is promoted via removePlayerFromRoom/timeout.
     emitLobby(normalizedCode);
   });
 
@@ -1381,6 +1388,8 @@ io.on("connection", (socket) => {
 
     rooms[roomCode] = {
       hostId: socket.id,
+      hostToken: humanPlayer.token,
+      hostReservedUntil: 0,
       players: [humanPlayer, createBotPlayer(roomCode, difficulty)],
       started: false,
       handSize: DEFAULT_HAND_SIZE,
@@ -1814,19 +1823,21 @@ io.on("connection", (socket) => {
     player.disconnected = true;
     if (player.disconnectTimer) clearTimeout(player.disconnectTimer);
 
-    // If the host dropped in the lobby, reassign immediately so the room isn't
-    // left without a startable host for the whole grace window — but remember the
-    // original host's token so they reclaim host on a quick reconnect (H1).
+    const isHostDrop = room.hostId === player.id;
+    // Reserve the host role (don't reassign) if the host drops — they get it back
+    // automatically if they reconnect within HOST_RECONNECT_GRACE_MS. The host's
+    // seat also gets the longer grace so it isn't AI-taken/removed prematurely.
+    if (isHostDrop) {
+      room.hostReservedUntil = Date.now() + HOST_RECONNECT_GRACE_MS;
+    }
     if (!room.started) {
-      if (room.hostId === player.id) {
-        room.pendingHostToken = player.token;
-      }
-      assignHostIfNeeded(code, player.id);
       // A disconnecting player may unblock (or expire) a pending rematch (R2).
       recheckRematch(code);
     }
 
-    const grace = room.started ? RECONNECT_GRACE_MS : LOBBY_GRACE_MS;
+    const grace = isHostDrop
+      ? HOST_RECONNECT_GRACE_MS
+      : (room.started ? RECONNECT_GRACE_MS : LOBBY_GRACE_MS);
     const lostTokenId = player.token; // capture before any reassignment
     const hostIdAtDisconnect = player.id;
     player.disconnectTimer = setTimeout(() => {
@@ -1853,6 +1864,9 @@ io.on("connection", (socket) => {
           name: stillThere.originalName
         });
 
+        // Host reservation expired (they didn't return) — release it so a new
+        // permanent host can be promoted and hostToken re-anchored.
+        r.hostReservedUntil = 0;
         assignHostIfNeeded(code, hostIdAtDisconnect);
 
         // If it's currently this player's turn, drop the auto-draw turn timer
@@ -1911,25 +1925,21 @@ io.on("connection", (socket) => {
       });
     }
 
-    // If this player was the host, repoint hostId to the new socket id —
-    // otherwise host-only actions (startGame, updateLobbyRules, resolveDeckDecision)
-    // silently fail after a reconnect.
+    // Restore host to the creator on reconnect if this is their seat and they're
+    // within the reservation window (works in lobby AND in-game), or if their seat
+    // is still the nominal host. Repoint hostId to the new socket id either way.
     const wasHost = room.hostId === player.id;
+    const isReservedHost = token === room.hostToken &&
+      room.hostReservedUntil && Date.now() <= room.hostReservedUntil;
     player.id = socket.id;
-    if (wasHost) room.hostId = socket.id;
-
-    // Sticky host: if this player was the lobby host but got reassigned away
-    // during a brief disconnect, restore host to them on reconnect (H1).
-    if (room.pendingHostToken && room.pendingHostToken === token) {
-      room.pendingHostToken = null;
-      if (!room.started && room.hostId !== socket.id) {
-        room.hostId = socket.id;
-        io.to(code).emit("hostChanged", {
-          hostId: socket.id,
-          name: player.name,
-          playerName: player.name
-        });
-      }
+    if ((wasHost || isReservedHost) && room.hostId !== socket.id) {
+      room.hostId = socket.id;
+      room.hostReservedUntil = 0;
+      io.to(code).emit("hostChanged", {
+        hostId: socket.id,
+        name: player.name,
+        playerName: player.name
+      });
     }
     player.disconnected = false;
     if (player.userId) socket.data.userId = player.userId;
@@ -2155,10 +2165,21 @@ io.on("connection", (socket) => {
       name: reclaimable.name
     });
 
-    // Re-point the seat to the new socket.
+    // Re-point the seat to the new socket, restoring host if this is the reserved
+    // creator reconnecting (lobby or in-game) or the nominal host reclaiming.
     const wasHost = room.hostId === reclaimable.id;
+    const isReservedHost = reclaimable.token === room.hostToken &&
+      room.hostReservedUntil && Date.now() <= room.hostReservedUntil;
     reclaimable.id = socket.id;
-    if (wasHost) room.hostId = socket.id;
+    if ((wasHost || isReservedHost) && room.hostId !== socket.id) {
+      room.hostId = socket.id;
+      room.hostReservedUntil = 0;
+      io.to(code).emit("hostChanged", {
+        hostId: socket.id,
+        name: reclaimable.name,
+        playerName: reclaimable.name
+      });
+    }
     reclaimable.disconnected = false;
     if (reclaimable.userId) socket.data.userId = reclaimable.userId;
 
