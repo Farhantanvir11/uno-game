@@ -688,15 +688,14 @@ function stopSound(name) {
 
 function closeWinnerModal() {
   winnerModal.style.display = "none";
-  if (_transportMode !== "local") {
-    // Online: opting out leaves the room so the seat vacates — it can't keep
-    // counting toward the rematch vote and stall the players who stay. leaveRoom
-    // also tears down locally so a buffered emit can't strand us (G1).
-    leaveRoom();
-  } else {
+  if (_transportMode === "local") {
+    // Offline bot match: no online room to stay in — drop the local session.
     clearSession();
-    setScreen("lobby");
   }
+  // Online: stay in the room and show its waiting lobby (already rendered under
+  // the modal from the post-game lobbyUpdated). This matches Esc/dismiss, which
+  // also keeps the player in the room. Use the lobby's Leave button to leave.
+  setScreen("lobby");
 }
 
 function showToast(message, duration = 1000) {
