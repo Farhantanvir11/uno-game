@@ -3262,7 +3262,8 @@ body.is-spectator .your-turn-banner,
 body.is-spectator #startBtn,
 body.is-spectator .lobby-rules,
 body.is-spectator .lobby-settings,
-body.is-spectator .lobby-visibility { display: none !important; }
+body.is-spectator .lobby-visibility,
+body.is-spectator #rematchBtn { display: none !important; }
 
 body.is-spectator #roomLabel::after {
   content: "👀 Spectating";

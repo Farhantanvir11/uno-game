@@ -691,10 +691,14 @@ function closeWinnerModal() {
   if (_transportMode === "local") {
     // Offline bot match: no online room to stay in — drop the local session.
     clearSession();
+    setScreen("lobby");
+    return;
   }
-  // Online: stay in the room and show its waiting lobby (already rendered under
-  // the modal from the post-game lobbyUpdated). This matches Esc/dismiss, which
-  // also keeps the player in the room. Use the lobby's Leave button to leave.
+  // Online: stay in the room but opt out of the next round so you don't block the
+  // rematch or get dealt back in. You'll watch the next match; rejoin from the
+  // lobby to play again.
+  try { socket.emit("declineRematch"); } catch {}
+  showToast("You'll sit out the next round — rejoin from the lobby to play.", 2600);
   setScreen("lobby");
 }
 

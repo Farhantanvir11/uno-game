@@ -506,6 +506,7 @@ async function finishGame(roomCode, winner) {
 
   room.started = false;
   room.rematchVotes = new Set();
+  room.rematchDeclined = new Set();
   stopBotTurn(room);
   stopTurnTimer(room);
 
@@ -687,6 +688,24 @@ function startRoomGame(roomCode, handSize = DEFAULT_HAND_SIZE) {
   room.unoTurnBonus = false;
   room.deck = createUnoDeck();
   room.discard = [];
+
+  // Players who declined the rematch ("Back to Lobby") move to spectators: they
+  // stay in the room and watch but aren't dealt in. Reset the decline set.
+  if (room.rematchDeclined && room.rematchDeclined.size) {
+    if (!room.spectators) room.spectators = new Map();
+    room.players = room.players.filter((player) => {
+      if (room.rematchDeclined.has(player.token)) {
+        room.spectators.set(player.id, player.name);
+        io.to(player.id).emit("spectatorJoined", roomCode);
+        return false;
+      }
+      return true;
+    });
+    room.rematchDeclined = new Set();
+    if (room.players.length && !room.players.some((p) => p.id === room.hostId)) {
+      assignHostIfNeeded(roomCode, room.hostId);
+    }
+  }
 
   room.players.forEach((player) => {
     player.cards = [];
@@ -990,9 +1009,6 @@ function removeSpectator(socketId) {
 function assignHostIfNeeded(roomCode, previousHostId) {
   const room = rooms[roomCode];
   if (!room) return;
-  // Never promote while the host role is reserved (host may still return within
-  // HOST_RECONNECT_GRACE_MS). Legitimate transfers clear the reservation first.
-  if (room.hostReservedUntil && Date.now() <= room.hostReservedUntil) return;
   if (room.hostId !== previousHostId) {
     return;
   }
@@ -1007,7 +1023,13 @@ function assignHostIfNeeded(roomCode, previousHostId) {
   }
 
   room.hostId = newHost.id;
-  room.hostToken = newHost.token; // re-anchor the permanent host on a real transfer
+  // During an active host reservation the creator may still reclaim, so the
+  // promoted player is only a deputy (acting host) — keep hostToken on the
+  // creator. Once the reservation has lapsed this is a permanent transfer.
+  if (!room.hostReservedUntil || Date.now() > room.hostReservedUntil) {
+    room.hostToken = newHost.token;
+    room.hostReservedUntil = 0;
+  }
   if (!newHost.isBot) {
     io.to(roomCode).emit("hostChanged", {
       hostId: newHost.id,
@@ -1051,7 +1073,7 @@ function recheckRematch(roomCode) {
   if (!room || room.started || !room.rematchVotes || room.rematchVotes.size === 0) {
     return;
   }
-  const humans = room.players.filter((p) => !p.isBot && !p.disconnected);
+  const humans = room.players.filter((p) => !p.isBot && !p.disconnected && !(room.rematchDeclined && room.rematchDeclined.has(p.token)));
   const votes = humans.filter((p) => room.rematchVotes.has(p.token)).length;
   if (humans.length < MIN_PLAYERS) {
     room.rematchVotes = new Set();
@@ -1088,10 +1110,12 @@ function removePlayerFromRoom(socketId) {
 
   room.players.splice(index, 1);
 
-  // The host intentionally left (or their reservation expired and the seat was
-  // removed) — release the reservation so a new permanent host is promoted below.
+  // The creator's seat is gone (intentional leave or reservation lapse) — release
+  // the reservation and make the acting host (deputy) the permanent host.
   if (removed && room.hostToken === removed.token) {
     room.hostReservedUntil = 0;
+    const actingHost = room.players.find((p) => p.id === room.hostId);
+    if (actingHost) room.hostToken = actingHost.token;
   }
 
   if (room.players.length === 0 || room.players.every((player) => player.isBot)) {
@@ -1264,7 +1288,7 @@ io.on("connection", (socket) => {
   socket.on("listPublicRooms", () => {
     if (rateLimited(socket, "listRooms", 20, 60000)) return;
     const rows = Object.keys(rooms)
-      .filter((code) => !rooms[code].soloMode) // never list bot/solo rooms
+      .filter((code) => !rooms[code].soloMode && rooms[code].players.some((p) => !p.isBot)) // never list bot/solo or all-bot rooms
       .map((code) => {
         const r = rooms[code];
         if (r.visibility === "public") {
@@ -1365,6 +1389,9 @@ io.on("connection", (socket) => {
     }
 
     const player = createPlayer(socket, playerName);
+    // If they were spectating (e.g. declined a rematch), drop the spectator entry
+    // so they're not double-counted as both player and spectator.
+    if (room.spectators) room.spectators.delete(socket.id);
     room.players.push(player);
     touchRoom(room);
     socket.join(normalizedCode);
@@ -1824,22 +1851,22 @@ io.on("connection", (socket) => {
     if (player.disconnectTimer) clearTimeout(player.disconnectTimer);
 
     const isHostDrop = room.hostId === player.id;
-    // Reserve the host role (don't reassign) if the host drops — they get it back
-    // automatically if they reconnect within HOST_RECONNECT_GRACE_MS. The host's
-    // seat also gets the longer grace so it isn't AI-taken/removed prematurely.
+    // If the host drops, reserve the ROLE (reclaimable via token on reconnect)
+    // but still promote a deputy immediately so the room stays usable.
     if (isHostDrop) {
-      room.hostReservedUntil = Date.now() + HOST_RECONNECT_GRACE_MS;
+      room.hostReservedUntil = Date.now() + (room.started ? HOST_RECONNECT_GRACE_MS : LOBBY_GRACE_MS);
     }
+    // Promote a deputy/acting host right away (no-op for a non-host drop). The
+    // host's SEAT uses the normal grace below (becomes a bot/is removed at the
+    // same pace as anyone else's) — the role reservation is decoupled (F2).
+    assignHostIfNeeded(code, player.id);
     if (!room.started) {
       // A disconnecting player may unblock (or expire) a pending rematch (R2).
       recheckRematch(code);
     }
 
-    const grace = isHostDrop
-      ? HOST_RECONNECT_GRACE_MS
-      : (room.started ? RECONNECT_GRACE_MS : LOBBY_GRACE_MS);
+    const grace = room.started ? RECONNECT_GRACE_MS : LOBBY_GRACE_MS;
     const lostTokenId = player.token; // capture before any reassignment
-    const hostIdAtDisconnect = player.id;
     player.disconnectTimer = setTimeout(() => {
       const r = rooms[code];
       if (!r) return;
@@ -1864,10 +1891,9 @@ io.on("connection", (socket) => {
           name: stillThere.originalName
         });
 
-        // Host reservation expired (they didn't return) — release it so a new
-        // permanent host can be promoted and hostToken re-anchored.
-        r.hostReservedUntil = 0;
-        assignHostIfNeeded(code, hostIdAtDisconnect);
+        // The deputy was promoted at disconnect-time; the host ROLE stays reserved
+        // for HOST_RECONNECT_GRACE_MS (independent of this 30s seat grace), so the
+        // creator can still reclaim. No promotion or reservation-clear needed here.
 
         // If it's currently this player's turn, drop the auto-draw turn timer
         // and let the bot scheduler take over.
@@ -2047,6 +2073,21 @@ io.on("connection", (socket) => {
     io.to(roomCode).emit("chatMessage", { playerId: socket.id, text });
   });
 
+  socket.on("declineRematch", () => {
+    const roomCode = Object.keys(rooms).find((code) =>
+      rooms[code].players.some((p) => p.id === socket.id)
+    );
+    if (!roomCode) return;
+    const room = rooms[roomCode];
+    if (room.started) return;
+    const decliner = room.players.find((p) => p.id === socket.id);
+    if (!decliner) return;
+    if (!room.rematchDeclined) room.rematchDeclined = new Set();
+    room.rematchDeclined.add(decliner.token);
+    // A decliner no longer counts toward the rematch requirement (may unblock it).
+    recheckRematch(roomCode);
+  });
+
   socket.on("requestRematch", () => {
     const roomCode = Object.keys(rooms).find((code) =>
       rooms[code].players.some((p) => p.id === socket.id)
@@ -2063,7 +2104,7 @@ io.on("connection", (socket) => {
     // reconnect, which would otherwise orphan an already-cast vote (R1).
     room.rematchVotes.add(voter.token);
 
-    const humanPlayers = room.players.filter((p) => !p.isBot && !p.disconnected);
+    const humanPlayers = room.players.filter((p) => !p.isBot && !p.disconnected && !(room.rematchDeclined && room.rematchDeclined.has(p.token)));
     const required = humanPlayers.length;
     const votes = humanPlayers.filter((p) => room.rematchVotes.has(p.token)).length;
 
@@ -2234,7 +2275,10 @@ setInterval(() => {
     const everyoneDropped =
       room.players.length > 0 && room.players.every((p) => p.isBot || p.disconnected);
 
-    if (idle || onlyBots || everyoneDropped) {
+    // Don't reap while the host role is reserved (the creator may still reconnect
+    // and reclaim); the next sweep after the reservation lapses handles it.
+    const hostReserved = room.hostReservedUntil && now <= room.hostReservedUntil;
+    if (!hostReserved && (idle || onlyBots || everyoneDropped)) {
       stopBotTurn(room);
       stopTurnTimer(room);
       if (room.deckDecisionTimer) clearTimeout(room.deckDecisionTimer);
