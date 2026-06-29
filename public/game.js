@@ -1241,11 +1241,11 @@ function playCard(card, sourceEl) {
   }
   if (isPlayingCard) return; // guard against rapid double-taps during flight
 
-  // Local playability check — don't animate/emit a card the server will reject.
-  // The server penalizes an illegal play with a forced draw (+ a forfeited turn),
-  // and finishing with a power card costs 10 cards, so block both before any emit.
-  if (!isLocallyPlayable(card, currentRoom)) {
-    showToast("That card can't be played right now", 900);
+  // Only block the harsh "finish with a power card" (10-card) case up front. Let
+  // other wrong cards reach the server, which applies its 1-card wrong-card
+  // penalty (draw 1 + forfeit the turn) — see server.js playCard.
+  if (myCards.length === 1 && isPowerCard(card)) {
+    showToast("You can't finish with a power card", 1200);
     playSound("invalidMove");
     return;
   }
