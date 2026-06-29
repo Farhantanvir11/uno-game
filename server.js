@@ -506,7 +506,6 @@ async function finishGame(roomCode, winner) {
 
   room.started = false;
   room.rematchVotes = new Set();
-  room.rematchDeclined = new Set();
   stopBotTurn(room);
   stopTurnTimer(room);
 
@@ -688,24 +687,6 @@ function startRoomGame(roomCode, handSize = DEFAULT_HAND_SIZE) {
   room.unoTurnBonus = false;
   room.deck = createUnoDeck();
   room.discard = [];
-
-  // Players who declined the rematch ("Back to Lobby") move to spectators: they
-  // stay in the room and watch but aren't dealt in. Reset the decline set.
-  if (room.rematchDeclined && room.rematchDeclined.size) {
-    if (!room.spectators) room.spectators = new Map();
-    room.players = room.players.filter((player) => {
-      if (room.rematchDeclined.has(player.token)) {
-        room.spectators.set(player.id, player.name);
-        io.to(player.id).emit("spectatorJoined", roomCode);
-        return false;
-      }
-      return true;
-    });
-    room.rematchDeclined = new Set();
-    if (room.players.length && !room.players.some((p) => p.id === room.hostId)) {
-      assignHostIfNeeded(roomCode, room.hostId);
-    }
-  }
 
   room.players.forEach((player) => {
     player.cards = [];
@@ -1073,7 +1054,7 @@ function recheckRematch(roomCode) {
   if (!room || room.started || !room.rematchVotes || room.rematchVotes.size === 0) {
     return;
   }
-  const humans = room.players.filter((p) => !p.isBot && !p.disconnected && !(room.rematchDeclined && room.rematchDeclined.has(p.token)));
+  const humans = room.players.filter((p) => !p.isBot && !p.disconnected);
   const votes = humans.filter((p) => room.rematchVotes.has(p.token)).length;
   if (humans.length < MIN_PLAYERS) {
     room.rematchVotes = new Set();
@@ -2073,21 +2054,6 @@ io.on("connection", (socket) => {
     io.to(roomCode).emit("chatMessage", { playerId: socket.id, text });
   });
 
-  socket.on("declineRematch", () => {
-    const roomCode = Object.keys(rooms).find((code) =>
-      rooms[code].players.some((p) => p.id === socket.id)
-    );
-    if (!roomCode) return;
-    const room = rooms[roomCode];
-    if (room.started) return;
-    const decliner = room.players.find((p) => p.id === socket.id);
-    if (!decliner) return;
-    if (!room.rematchDeclined) room.rematchDeclined = new Set();
-    room.rematchDeclined.add(decliner.token);
-    // A decliner no longer counts toward the rematch requirement (may unblock it).
-    recheckRematch(roomCode);
-  });
-
   socket.on("requestRematch", () => {
     const roomCode = Object.keys(rooms).find((code) =>
       rooms[code].players.some((p) => p.id === socket.id)
@@ -2104,7 +2070,7 @@ io.on("connection", (socket) => {
     // reconnect, which would otherwise orphan an already-cast vote (R1).
     room.rematchVotes.add(voter.token);
 
-    const humanPlayers = room.players.filter((p) => !p.isBot && !p.disconnected && !(room.rematchDeclined && room.rematchDeclined.has(p.token)));
+    const humanPlayers = room.players.filter((p) => !p.isBot && !p.disconnected);
     const required = humanPlayers.length;
     const votes = humanPlayers.filter((p) => room.rematchVotes.has(p.token)).length;
 

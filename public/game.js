@@ -694,11 +694,9 @@ function closeWinnerModal() {
     setScreen("lobby");
     return;
   }
-  // Online: stay in the room but opt out of the next round so you don't block the
-  // rematch or get dealt back in. You'll watch the next match; rejoin from the
-  // lobby to play again.
-  try { socket.emit("declineRematch"); } catch {}
-  showToast("You'll sit out the next round — rejoin from the lobby to play.", 2600);
+  // Online: dismiss the winner modal and stay in the room's waiting lobby as a
+  // normal player — everyone in the lobby plays the next match. Use the lobby's
+  // Leave button to leave.
   setScreen("lobby");
 }
 
