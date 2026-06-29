@@ -257,12 +257,13 @@
           if (idx === -1) return;
           const top = E.getTopCard(room);
           // Cannot finish the game with a power card, even if it would otherwise
-          // be an illegal play for some separate reason. This penalty takes precedence.
+          // be an illegal play for some separate reason. This penalty takes precedence:
+          // draw 10 penalty cards AND lose the turn.
           if (player.cards.length === 1 && E.isPowerCard(card)) {
             emit("invalidMove", "You cannot finish with a power card. Draw 10 penalty cards.");
             E.drawCards(room, player, 10);
             emit("penalty");
-            emitGame();
+            advanceAndSchedule(1);
             return;
           }
           if (!E.isPlayableCard(card, top, room.stackCount, room.rules)) {

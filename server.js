@@ -1573,7 +1573,8 @@ io.on("connection", (socket) => {
 
     const topCard = getTopCard(room);
     // Cannot finish the game with a power card, even if the card would also
-    // be illegal against the current top card. This penalty takes precedence.
+    // be illegal against the current top card. This penalty takes precedence:
+    // draw 10 penalty cards AND lose the turn.
     if (player.cards.length === 1 && isPowerCard(card)) {
       emitInvalidMove(socket, "You cannot finish with a power card. Draw 10 penalty cards.");
       const drawResult = drawCards(room, player, 10);
@@ -1586,14 +1587,14 @@ io.on("connection", (socket) => {
         requestDeckDecision(roomCode, {
           playerId: player.id,
           remainingDraws: drawResult.remainingCount,
-          advanceSteps: 0,
+          advanceSteps: 1,
           clearStackOnResume: false,
           showPenalty: false
         });
         return;
       }
 
-      emitGameState(roomCode);
+      advanceToNextTurn(roomCode);
       return;
     }
 

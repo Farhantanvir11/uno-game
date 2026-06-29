@@ -1241,14 +1241,10 @@ function playCard(card, sourceEl) {
   }
   if (isPlayingCard) return; // guard against rapid double-taps during flight
 
-  // Only block the harsh "finish with a power card" (10-card) case up front. Let
-  // other wrong cards reach the server, which applies its 1-card wrong-card
-  // penalty (draw 1 + forfeit the turn) — see server.js playCard.
-  if (myCards.length === 1 && isPowerCard(card)) {
-    showToast("You can't finish with a power card", 1200);
-    playSound("invalidMove");
-    return;
-  }
+  // No client-side playability pre-check: send the play to the server, which is
+  // authoritative — it applies the 1-card wrong-card penalty or the 10-card
+  // "can't finish with a power card" penalty (both also end the turn). The hand's
+  // playable glow (isLocallyPlayable in renderHand) still hints at legal cards.
 
   if (card.value === "wild" || card.value === "+4") {
     // If a previous wild/+4 tap is still awaiting color choice, restore that
