@@ -1022,6 +1022,9 @@ function updateLobby(room) {
   lobbyPlayers.innerHTML = "";
 
   const MAX_SLOTS = 5;
+  const viewerIsHost = socket.id === room.hostId;
+  const hasBot = room.players.some((p) => p.isBot);
+  let firstEmptyShown = false;
   for (let i = 0; i < MAX_SLOTS; i += 1) {
     const player = room.players[i];
     const slot = document.createElement("div");
@@ -1033,16 +1036,20 @@ function updateLobby(room) {
       const { url, color } = getAvatarFor(player);
       slot.classList.add("is-filled");
       if (isHost) slot.classList.add("is-host");
+      const canRemoveBot = viewerIsHost && player.isBot && !room.started;
       slot.innerHTML = `
         <div class="slot-avatar" style="--avatar-bg:${color};">
           <img src="${url}" alt="" />
           ${isHost ? '<span class="slot-crown" title="Host">\u2605</span>' : ""}
         </div>
         <div class="slot-name">${_escapeHtml(player.name)}${isMe ? " (You)" : ""}</div>
-        <div class="slot-tag">${isHost ? "Host" : "Ready"}</div>
+        <div class="slot-tag">${isHost ? "Host" : (player.isBot ? "BOT" : "Ready")}</div>
+        ${canRemoveBot ? '<button class="slot-bot-btn slot-bot-remove" type="button" onclick="removeLobbyBot()" title="Remove Master Bot">&minus;</button>' : ""}
       `;
     } else {
       slot.classList.add("is-empty");
+      const showAdd = viewerIsHost && !hasBot && !room.soloMode && !firstEmptyShown;
+      if (showAdd) firstEmptyShown = true;
       slot.innerHTML = `
         <div class="slot-avatar slot-avatar-empty">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1052,6 +1059,7 @@ function updateLobby(room) {
         </div>
         <div class="slot-name">Waiting&hellip;</div>
         <div class="slot-tag">Open slot</div>
+        ${showAdd ? '<button class="slot-bot-btn slot-bot-add" type="button" onclick="addLobbyBot()" title="Add Master Bot">+</button>' : ""}
       `;
     }
 
@@ -1179,6 +1187,15 @@ function broadcastLobbySettings() {
       challengePlusFour: document.getElementById("ruleChallenge")?.checked ?? false
     }
   });
+}
+
+function addLobbyBot() {
+  if (!currentRoom || currentRoom.hostId !== socket.id) return;
+  socket.emit("addLobbyBot", { roomCode });
+}
+function removeLobbyBot() {
+  if (!currentRoom || currentRoom.hostId !== socket.id) return;
+  socket.emit("removeLobbyBot", { roomCode });
 }
 
 ["ruleStacking", "ruleDrawUntil", "ruleChallenge"].forEach((id) => {

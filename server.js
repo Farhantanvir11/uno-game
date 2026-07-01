@@ -1457,6 +1457,30 @@ io.on("connection", (socket) => {
     emitLobby(code);
   });
 
+  socket.on("addLobbyBot", ({ roomCode } = {}) => {
+    if (rateLimited(socket, "lobbyBot", 10, 60000)) return;
+    const code = (roomCode || "").trim().toUpperCase();
+    const room = rooms[code];
+    if (!room || room.started || room.soloMode) return;
+    if (room.hostId !== socket.id) return;
+    if (room.players.length >= MAX_PLAYERS) return;
+    if (room.players.some((p) => p.isBot)) return;
+    room.players.push(createBotPlayer(code, "hard"));
+    emitLobby(code);
+  });
+
+  socket.on("removeLobbyBot", ({ roomCode } = {}) => {
+    if (rateLimited(socket, "lobbyBot", 10, 60000)) return;
+    const code = (roomCode || "").trim().toUpperCase();
+    const room = rooms[code];
+    if (!room || room.started) return;
+    if (room.hostId !== socket.id) return;
+    const botIdx = room.players.findIndex((p) => p.isBot);
+    if (botIdx === -1) return;
+    room.players.splice(botIdx, 1);
+    emitLobby(code);
+  });
+
   socket.on("startGame", ({ roomCode, cards, rules }) => {
     const room = rooms[roomCode];
     if (!room) {
