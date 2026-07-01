@@ -331,6 +331,7 @@ socket.on("connect", () => {
   if (session) {
     socket.emit("resumeSession", session);
   }
+  startBadgePoll();
 });
 
 // On any connect attempt, prefill UI from cached profile so the menu doesn't look empty.
@@ -3220,6 +3221,17 @@ function closeLeaderboard() {
 
 // ----- Room Browser -----
 let roomBrowserPoll = null;
+// Badge poll: lightweight background check for active rooms (drives the eye-button badge).
+let badgePoll = null;
+function startBadgePoll() {
+  stopBadgePoll();
+  const check = () => { if (_realSocket.connected) { try { socket.emit("listPublicRooms"); } catch {} } };
+  check();
+  badgePoll = setInterval(check, 15000);
+}
+function stopBadgePoll() {
+  if (badgePoll) { clearInterval(badgePoll); badgePoll = null; }
+}
 function openRoomBrowser() {
   unlockAudio();
   const el = document.getElementById("roomBrowserModal");
@@ -3239,8 +3251,12 @@ function closeRoomBrowser() {
 }
 
 socket.on("publicRooms", (rows) => {
+  // Badge: show if any rooms exist.
+  const badge = document.getElementById("roomBadge");
+  if (badge) badge.classList.toggle("is-visible", Array.isArray(rows) && rows.length > 0);
+  // Only rebuild the browser list when the browser is actually open.
   const list = document.getElementById("roomBrowserList");
-  if (!list) return;
+  if (!list || document.getElementById("roomBrowserModal")?.style.display !== "flex") return;
   if (!Array.isArray(rows) || !rows.length) {
     list.innerHTML = '<div class="lb-empty">No live rooms right now.</div>';
     return;

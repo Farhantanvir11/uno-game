@@ -4126,6 +4126,7 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
   cursor: pointer;
   transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
   box-shadow: 0 4px 14px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.04);
@@ -4137,6 +4138,31 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 }
 .top-action-btn:active { transform: translateY(0) scale(.96); }
 .top-action-btn svg { width: 20px; height: 20px; }
+
+/* Notification badge for the Browse Rooms (eye) button */
+.room-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff3b30;
+  box-shadow: 0 0 6px 1px rgba(255, 59, 48, 0.7);
+  opacity: 0;
+  transform: scale(0);
+  transition: opacity .25s, transform .25s;
+  pointer-events: none;
+}
+.room-badge.is-visible {
+  opacity: 1;
+  transform: scale(1);
+  animation: badgePulse 2s ease-in-out infinite;
+}
+@keyframes badgePulse {
+  0%, 100% { box-shadow: 0 0 4px 0 rgba(255, 59, 48, 0.5); }
+  50%      { box-shadow: 0 0 8px 2px rgba(255, 59, 48, 0.85); }
+}
 
 /* Hero stage = image + CTAs overlaid inside its lower half */
 .hero-stage {
