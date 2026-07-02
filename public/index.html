@@ -141,7 +141,7 @@
         <p class="settings-sub">Tune your experience</p>
       </div>
 
-      <div class="settings-row" data-setting="avatar">
+      <div class="settings-row" data-setting="avatar" onclick="openAvatarPicker()" style="cursor:pointer;">
         <div class="settings-row-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="8" r="4"/>
@@ -152,8 +152,8 @@
           <strong>Avatar</strong>
           <span>Pick your style</span>
         </div>
+        <div class="avatar-preview" id="avatarPreview"></div>
       </div>
-      <div class="avatar-grid" id="avatarGrid"></div>
 
       <div class="settings-row" data-setting="sfx">
         <div class="settings-row-icon">
@@ -215,6 +215,19 @@
         </svg>
         Leave Room
       </button>
+    </div>
+  </div>
+
+  <!-- ========== AVATAR PICKER ========== -->
+  <div id="avatarPickerModal" class="settings-overlay" style="display:none;" onclick="if(event.target===this) closeAvatarPicker()">
+    <div class="settings-card" style="max-width:400px;">
+      <button class="tutorial-close" type="button" onclick="closeAvatarPicker()" aria-label="Close">&times;</button>
+      <div class="settings-header">
+        <div class="settings-glow"></div>
+        <h3 class="settings-title">Pick Your Avatar</h3>
+        <p class="settings-sub">Tap to select your style</p>
+      </div>
+      <div class="avatar-grid" id="avatarGrid"></div>
     </div>
   </div>
 

@@ -3197,7 +3197,27 @@ document.getElementById("avatarGrid")?.addEventListener("click", (e) => {
   socket.emit("updateProfile", { avatar: style });
   userProfile.avatar = style;
   renderAvatarGrid();
+  updateAvatarPreview();
+  closeAvatarPicker();
 });
+
+function updateAvatarPreview() {
+  const el = document.getElementById("avatarPreview");
+  if (!el || !userProfile?.userId) return;
+  const style = userProfile.avatar || "big-smile";
+  const url = buildAvatarURL(style, String(userProfile.userId));
+  el.innerHTML = `<img src="${url}" alt="" />`;
+}
+function openAvatarPicker() {
+  if (!userProfile?.userId) return;
+  renderAvatarGrid();
+  const el = document.getElementById("avatarPickerModal");
+  if (el) el.style.display = "flex";
+}
+function closeAvatarPicker() {
+  const el = document.getElementById("avatarPickerModal");
+  if (el) el.style.display = "none";
+}
 
 function openSettings() {
   unlockAudio();
@@ -3213,9 +3233,7 @@ function openSettings() {
   const showAvatar = !currentRoom;
   const avatarRow = document.querySelector('[data-setting="avatar"]');
   if (avatarRow) avatarRow.style.display = showAvatar ? "" : "none";
-  const avatarGridEl = document.getElementById("avatarGrid");
-  if (avatarGridEl) avatarGridEl.style.display = showAvatar ? "" : "none";
-  if (showAvatar) renderAvatarGrid();
+  if (showAvatar) updateAvatarPreview();
 }
 
 function closeSettings() {
@@ -3565,6 +3583,7 @@ function handleHardwareBack() {
     { el: document.getElementById("roomBrowserModal"),  close: () => closeRoomBrowser() },
     { el: document.getElementById("spectatorListModal"),close: () => closeSpectatorList() },
     { el: document.getElementById("profileModal"),      close: () => closeProfile() },
+    { el: document.getElementById("avatarPickerModal"), close: () => closeAvatarPicker() },
     { el: document.getElementById("colorPicker"),       close: () => {
         document.getElementById("colorPicker").style.display = "none";
         // Reset pending wild-card state so the card returns to hand cleanly.
