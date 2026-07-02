@@ -229,6 +229,20 @@
     </div>
   </div>
 
+  <!-- ========== PLAYER PROFILE ========== -->
+  <div id="profileModal" class="settings-overlay" style="display:none;" onclick="if(event.target===this) closeProfile()">
+    <div class="settings-card profile-card">
+      <button class="tutorial-close" type="button" onclick="closeProfile()" aria-label="Close">&times;</button>
+      <div class="settings-header">
+        <div class="settings-glow"></div>
+        <div class="profile-avatar" id="profileAvatar"></div>
+        <h3 class="settings-title" id="profileName">Player</h3>
+        <p class="settings-sub" id="profileSub">Rank #—</p>
+      </div>
+      <div id="profileBody" class="profile-body"></div>
+    </div>
+  </div>
+
   <!-- ========== ROOM BROWSER ========== -->
   <div id="roomBrowserModal" class="settings-overlay" style="display:none;" onclick="if(event.target===this) closeRoomBrowser()">
     <div class="settings-card">

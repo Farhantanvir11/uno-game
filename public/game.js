@@ -3256,6 +3256,54 @@ function closeLeaderboard() {
   if (LEADERBD_EL) LEADERBD_EL.style.display = "none";
 }
 
+// ----- Player Profile (tap a leaderboard row) -----
+let leaderboardRows = [];
+function showProfile(row) {
+  if (!row) return;
+  const winRate = row.gamesPlayed > 0 ? Math.round((row.wins / row.gamesPlayed) * 100) : 0;
+  const trophies = Number.isFinite(row.trophies) ? row.trophies : ((row.gamesPlayed || 0) * 5 + (row.wins || 0) * 25);
+  const tier = trophyTier(trophies);
+  const { url, color } = getAvatarFor({ id: String(row.userId), isBot: false, name: row.name });
+  const avatarEl = document.getElementById("profileAvatar");
+  if (avatarEl) {
+    avatarEl.style.setProperty("--avatar-bg", color);
+    avatarEl.innerHTML = url ? `<img src="${url}" alt="" />` : "";
+  }
+  const nameEl = document.getElementById("profileName");
+  if (nameEl) nameEl.textContent = row.name;
+  const subEl = document.getElementById("profileSub");
+  if (subEl) subEl.innerHTML = `Rank #${row.rank || "—"} · <span class="tier-badge tier-${tier.key}">${tier.label}</span> · \u{1F3C6} ${trophies}`;
+  const body = document.getElementById("profileBody");
+  if (body) {
+    const vp = Number.isFinite(row.winRateVsPlayer) ? `${row.winRateVsPlayer}%` : "—";
+    const vb = Number.isFinite(row.winRateVsBot) ? `${row.winRateVsBot}%` : "—";
+    body.innerHTML = `
+      <div class="profile-stats">
+        <div class="profile-stat"><div class="profile-stat-value">${row.gamesPlayed || 0}</div><div class="profile-stat-label">Total Games</div></div>
+        <div class="profile-stat"><div class="profile-stat-value">${winRate}%</div><div class="profile-stat-label">Win Rate</div></div>
+        <div class="profile-stat"><div class="profile-stat-value">${row.wins || 0}</div><div class="profile-stat-label">Wins</div></div>
+        <div class="profile-stat"><div class="profile-stat-value">${row.bestStreak || 0}</div><div class="profile-stat-label">Best Streak</div></div>
+      </div>
+      <div class="profile-wl">Losses: ${row.losses || 0} · Current Streak: ${row.currentStreak || 0}</div>
+      <div class="profile-vs">
+        <div class="profile-vs-item"><div class="profile-vs-ico">\u{1F9D1}</div><div class="profile-vs-val">${vp}</div><div class="profile-vs-label">vs Player (${row.humanGames || 0})</div></div>
+        <div class="profile-vs-item"><div class="profile-vs-ico">\u{1F916}</div><div class="profile-vs-val">${vb}</div><div class="profile-vs-label">vs Bot (${row.botGames || 0})</div></div>
+      </div>`;
+  }
+  document.getElementById("profileModal").style.display = "flex";
+}
+function closeProfile() {
+  const el = document.getElementById("profileModal");
+  if (el) el.style.display = "none";
+}
+document.addEventListener("click", (e) => {
+  const rowEl = e.target.closest(".lb-row[data-uid]");
+  if (!rowEl) return;
+  const uid = Number(rowEl.dataset.uid);
+  const data = leaderboardRows.find((r) => r.userId === uid);
+  if (data) { unlockAudio(); showProfile(data); }
+});
+
 // ----- Room Browser -----
 let roomBrowserPoll = null;
 // Badge poll: lightweight background check for active rooms (drives the eye-button badge).
@@ -3402,7 +3450,7 @@ socket.on("leaderboard", ({ rows, myUserId, error } = {}) => {
     const playerMatches = hasPlayer ? `<span class="wr-sub">${r.humanGames || 0}</span>` : "";
     const botMatches    = hasBot    ? `<span class="wr-sub">${r.botGames || 0}</span>`    : "";
     return `
-      <div class="lb-row${isMe ? " is-me" : ""}">
+      <div class="lb-row${isMe ? " is-me" : ""}" data-uid="${r.userId}">
         <span class="lb-col-rank">${medal}</span>
         <span class="lb-col-name">${_escapeHtml(r.name)}${isMe ? ' <em class="lb-you">you</em>' : ""}</span>
         <span class="lb-col-trophies">🏆 ${trophies}</span>
@@ -3413,6 +3461,7 @@ socket.on("leaderboard", ({ rows, myUserId, error } = {}) => {
         </span>
       </div>`;
   }).join("");
+  leaderboardRows = rows;
   lists.forEach((l) => { l.innerHTML = html; });
 
   // Show the trophy delta for "you" in the winner modal.
@@ -3487,6 +3536,7 @@ function handleHardwareBack() {
     { el: document.getElementById("leaderboardModal"),  close: () => closeLeaderboard() },
     { el: document.getElementById("roomBrowserModal"),  close: () => closeRoomBrowser() },
     { el: document.getElementById("spectatorListModal"),close: () => closeSpectatorList() },
+    { el: document.getElementById("profileModal"),      close: () => closeProfile() },
     { el: document.getElementById("colorPicker"),       close: () => {
         document.getElementById("colorPicker").style.display = "none";
         // Reset pending wild-card state so the card returns to hand cleanly.
