@@ -341,6 +341,7 @@ window.addEventListener("DOMContentLoaded", () => {
     if (nameInput && !nameInput.value) nameInput.value = userProfile.name;
   }
   renderProfileSummary();
+  applyCardTheme(localStorage.getItem("lcb-card-theme"));
 });
 
 let roomCode = "";
@@ -3192,6 +3193,25 @@ function openSettings() {
 function closeSettings() {
   if (SETTINGS_EL) SETTINGS_EL.style.display = "none";
 }
+
+const THEME_KEY = "lcb-card-theme";
+const THEMES = ["neon", "minimal", "retro"];
+function applyCardTheme(theme) {
+  THEMES.forEach((t) => document.body.classList.remove(`theme-${t}`));
+  if (theme && theme !== "classic" && THEMES.includes(theme)) {
+    document.body.classList.add(`theme-${theme}`);
+  }
+  document.querySelectorAll("#themeGroup .lobby-pill").forEach((p) => {
+    p.classList.toggle("is-active", p.dataset.theme === (theme || "classic"));
+  });
+}
+document.getElementById("themeGroup")?.addEventListener("click", (e) => {
+  const pill = e.target.closest(".lobby-pill");
+  if (!pill) return;
+  const theme = pill.dataset.theme;
+  localStorage.setItem(THEME_KEY, theme);
+  applyCardTheme(theme);
+});
 
 function updateSettingsSwitches() {
   const sfx = document.getElementById("sfxToggle");
