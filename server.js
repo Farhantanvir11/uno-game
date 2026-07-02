@@ -1213,6 +1213,7 @@ io.on("connection", (socket) => {
       player.avatar = user.avatar;
       if (rooms[code].started) emitGameState(code); else emitLobby(code);
     });
+    socket.data.avatar = user.avatar;
     socket.emit("profileUpdated", {
       userId: user.id,
       name: user.name,
