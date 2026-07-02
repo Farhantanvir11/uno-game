@@ -3234,6 +3234,7 @@ function openSettings() {
   const avatarRow = document.querySelector('[data-setting="avatar"]');
   if (avatarRow) avatarRow.style.display = showAvatar ? "" : "none";
   if (showAvatar) updateAvatarPreview();
+  updateThemePreview();
 }
 
 function closeSettings() {
@@ -3241,22 +3242,50 @@ function closeSettings() {
 }
 
 const THEME_KEY = "lcb-card-theme";
-const THEMES = ["galaxy", "minimal", "retro"];
+const THEMES = ["galaxy", "minimal", "retro", "ocean", "sunset", "forest", "royal"];
+const THEME_LABELS = { classic:"Classic", galaxy:"Galaxy", minimal:"Minimal", retro:"Retro", ocean:"Ocean", sunset:"Sunset", forest:"Forest", royal:"Royal" };
+const ALL_THEMES = ["classic", ...THEMES];
 function applyCardTheme(theme) {
   THEMES.forEach((t) => document.body.classList.remove(`theme-${t}`));
   if (theme && theme !== "classic" && THEMES.includes(theme)) {
     document.body.classList.add(`theme-${theme}`);
   }
-  document.querySelectorAll("#themeGroup .lobby-pill").forEach((p) => {
-    p.classList.toggle("is-active", p.dataset.theme === (theme || "classic"));
-  });
 }
-document.getElementById("themeGroup")?.addEventListener("click", (e) => {
-  const pill = e.target.closest(".lobby-pill");
-  if (!pill) return;
-  const theme = pill.dataset.theme;
+function updateThemePreview() {
+  const el = document.getElementById("themePreview");
+  if (!el) return;
+  const theme = localStorage.getItem(THEME_KEY) || "classic";
+  el.textContent = THEME_LABELS[theme] || "Classic";
+}
+function renderThemeGrid() {
+  const grid = document.getElementById("themePickerGrid");
+  if (!grid) return;
+  const current = localStorage.getItem(THEME_KEY) || "classic";
+  grid.innerHTML = ALL_THEMES.map((t) =>
+    `<button class="theme-option${t === current ? " is-active" : ""}" data-theme="${t}" type="button">
+      <div class="theme-swatch theme-swatch-${t}"></div>
+      <span>${THEME_LABELS[t]}</span>
+    </button>`
+  ).join("");
+}
+function openThemePicker() {
+  renderThemeGrid();
+  const el = document.getElementById("themePickerModal");
+  if (el) el.style.display = "flex";
+}
+function closeThemePicker() {
+  const el = document.getElementById("themePickerModal");
+  if (el) el.style.display = "none";
+}
+document.getElementById("themePickerGrid")?.addEventListener("click", (e) => {
+  const btn = e.target.closest(".theme-option");
+  if (!btn) return;
+  const theme = btn.dataset.theme;
   localStorage.setItem(THEME_KEY, theme);
   applyCardTheme(theme);
+  renderThemeGrid();
+  updateThemePreview();
+  closeThemePicker();
 });
 
 function updateSettingsSwitches() {
@@ -3584,6 +3613,7 @@ function handleHardwareBack() {
     { el: document.getElementById("spectatorListModal"),close: () => closeSpectatorList() },
     { el: document.getElementById("profileModal"),      close: () => closeProfile() },
     { el: document.getElementById("avatarPickerModal"), close: () => closeAvatarPicker() },
+    { el: document.getElementById("themePickerModal"),  close: () => closeThemePicker() },
     { el: document.getElementById("colorPicker"),       close: () => {
         document.getElementById("colorPicker").style.display = "none";
         // Reset pending wild-card state so the card returns to hand cleanly.

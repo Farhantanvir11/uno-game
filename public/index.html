@@ -188,7 +188,7 @@
         </button>
       </div>
 
-      <div class="settings-row" data-setting="theme">
+      <div class="settings-row" data-setting="theme" onclick="openThemePicker()" style="cursor:pointer;">
         <div class="settings-row-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="3" y="3" width="18" height="18" rx="3"/>
@@ -199,12 +199,7 @@
           <strong>Card Theme</strong>
           <span>Pick your card style</span>
         </div>
-      </div>
-      <div class="lobby-pill-group" id="themeGroup" style="margin:0 12px 12px;">
-        <button type="button" class="lobby-pill is-active" data-theme="classic">Classic</button>
-        <button type="button" class="lobby-pill" data-theme="galaxy">Galaxy</button>
-        <button type="button" class="lobby-pill" data-theme="minimal">Minimal</button>
-        <button type="button" class="lobby-pill" data-theme="retro">Retro</button>
+        <div class="theme-preview" id="themePreview"></div>
       </div>
 
       <button id="leaveRoomSetting" class="settings-leave" type="button" onclick="confirmLeaveRoom()" style="display:none;">
@@ -228,6 +223,19 @@
         <p class="settings-sub">Tap to select your style</p>
       </div>
       <div class="avatar-grid" id="avatarGrid"></div>
+    </div>
+  </div>
+
+  <!-- ========== CARD THEME PICKER ========== -->
+  <div id="themePickerModal" class="settings-overlay" style="display:none;" onclick="if(event.target===this) closeThemePicker()">
+    <div class="settings-card" style="max-width:400px;">
+      <button class="tutorial-close" type="button" onclick="closeThemePicker()" aria-label="Close">&times;</button>
+      <div class="settings-header">
+        <div class="settings-glow"></div>
+        <h3 class="settings-title">Card Theme</h3>
+        <p class="settings-sub">Pick your card style</p>
+      </div>
+      <div class="theme-picker-grid" id="themePickerGrid"></div>
     </div>
   </div>
 
