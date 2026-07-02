@@ -3211,8 +3211,10 @@ function openSettings() {
   updateSettingsSwitches();
   // Avatar picker only from the home screen — hide when in a room.
   const showAvatar = !currentRoom;
-  document.querySelector('[data-setting="avatar"]')?.style.display = showAvatar ? "" : "none";
-  document.getElementById("avatarGrid")?.style.display = showAvatar ? "" : "none";
+  const avatarRow = document.querySelector('[data-setting="avatar"]');
+  if (avatarRow) avatarRow.style.display = showAvatar ? "" : "none";
+  const avatarGridEl = document.getElementById("avatarGrid");
+  if (avatarGridEl) avatarGridEl.style.display = showAvatar ? "" : "none";
   if (showAvatar) renderAvatarGrid();
 }
 
