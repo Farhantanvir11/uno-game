@@ -128,6 +128,7 @@ socket.on("stats", (stats) => {
   userProfile = { ...userProfile, stats };
   writeProfile(userProfile);
   renderProfileSummary();
+  checkNewAchievements(stats);
   // Seed the trophy baseline (only on the first stats payload of a session)
   // so the next game-over can show an accurate +N delta.
   if (_lastSeenTrophies == null && stats && Number.isFinite(stats.gamesPlayed)) {
@@ -706,10 +707,38 @@ function showToast(message, duration = 1000) {
   clearTimeout(toastTimeout);
   toast.innerText = message;
   toast.classList.add("show");
-
   toastTimeout = setTimeout(() => {
     toast.classList.remove("show");
   }, duration);
+}
+
+// ----- Achievements -----
+const ACHIEVEMENTS = [
+  { key:"first_win",  icon:"\u{1F947}", label:"First Win",      desc:"Win your first game",       check: s => (s.wins||0) >= 1 },
+  { key:"games_10",   icon:"\u{1F3AE}", label:"Getting Started", desc:"Play 10 games",            check: s => (s.gamesPlayed||0) >= 10 },
+  { key:"games_100",  icon:"\u{1F4AF}", label:"Centurion",       desc:"Play 100 games",           check: s => (s.gamesPlayed||0) >= 100 },
+  { key:"streak_3",   icon:"\u{1F4C8}", label:"Hot Streak",      desc:"Win 3 in a row",          check: s => (s.bestStreak||0) >= 3 },
+  { key:"streak_5",   icon:"\u{1F525}", label:"On Fire",         desc:"Win 5 in a row",          check: s => (s.bestStreak||0) >= 5 },
+  { key:"streak_10",  icon:"⚡",   label:"Unstoppable",      desc:"Win 10 in a row",         check: s => (s.bestStreak||0) >= 10 },
+  { key:"bot_10",     icon:"\u{1F916}", label:"Bot Crusher",     desc:"Win 10 games vs bots",    check: s => (s.botWins||0) >= 10 },
+  { key:"human_10",   icon:"\u{1F3C6}", label:"Champion",        desc:"Win 10 games vs players", check: s => (s.humanWins||0) >= 10 },
+];
+const ACHIEVEMENT_SEEN_KEY = "lcb-achievements-seen";
+function getUnlockedAchievements(stats) {
+  return ACHIEVEMENTS.filter(a => a.check(stats || {}));
+}
+function checkNewAchievements(stats) {
+  if (!stats) return;
+  let seen;
+  try { seen = JSON.parse(localStorage.getItem(ACHIEVEMENT_SEEN_KEY) || "[]"); } catch { seen = []; }
+  const fresh = getUnlockedAchievements(stats).filter(a => !seen.includes(a.key));
+  if (fresh.length) {
+    fresh.forEach(a => {
+      showToast(`${a.icon} Achievement Unlocked: ${a.label}!`, 3000);
+      seen.push(a.key);
+    });
+    localStorage.setItem(ACHIEVEMENT_SEEN_KEY, JSON.stringify(seen));
+  }
 }
 
 function renderDeckDecision(room) {
@@ -3363,7 +3392,16 @@ function showProfile(row) {
       <div class="profile-vs">
         <div class="profile-vs-item"><div class="profile-vs-ico">\u{1F9D1}</div><div class="profile-vs-val">${vp}</div><div class="profile-vs-label">vs Player (${row.humanGames || 0})</div></div>
         <div class="profile-vs-item"><div class="profile-vs-ico">\u{1F916}</div><div class="profile-vs-val">${vb}</div><div class="profile-vs-label">vs Bot (${row.botGames || 0})</div></div>
-      </div>`;
+      </div>
+      <div class="achievement-grid">${(() => {
+        const unlockedKeys = new Set(getUnlockedAchievements(row).map(a => a.key));
+        return ACHIEVEMENTS.map(a =>
+          `<div class="achievement-badge${unlockedKeys.has(a.key) ? "" : " is-locked"}" title="${a.desc}">
+            <span class="achievement-icon">${a.icon}</span>
+            <span class="achievement-label">${a.label}</span>
+          </div>`
+        ).join("");
+      })()}</div>`;
   }
   document.getElementById("profileModal").style.display = "flex";
 }
