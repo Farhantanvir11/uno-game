@@ -1845,13 +1845,15 @@ function renderTopCard(room) {
 }
 
 // Five illustrated avatars (DiceBear "big-smile" + "personas" mix).
-const AVATAR_URLS = [
-  "https://api.dicebear.com/7.x/big-smile/svg?seed=Atlas&backgroundColor=b6e3f4",
-  "https://api.dicebear.com/7.x/big-smile/svg?seed=Nova&backgroundColor=ffdfbf",
-  "https://api.dicebear.com/7.x/big-smile/svg?seed=Zara&backgroundColor=ffd5dc",
-  "https://api.dicebear.com/7.x/big-smile/svg?seed=Kai&backgroundColor=c0aede",
-  "https://api.dicebear.com/7.x/big-smile/svg?seed=Milo&backgroundColor=d1d4f9"
+const DICEBEAR_STYLES = [
+  "big-smile", "fun-emoji", "bottts", "avataaars", "pixel-art",
+  "identicon", "shapes", "lorelei", "micah", "notionists",
+  "open-peeps", "adventurer"
 ];
+function buildAvatarURL(style, seed) {
+  const s = DICEBEAR_STYLES.includes(style) ? style : "big-smile";
+  return `https://api.dicebear.com/7.x/${s}/svg?seed=${encodeURIComponent(seed)}`;
+}
 const BOT_AVATAR_URL = "https://api.dicebear.com/7.x/bottts/svg?seed=LastCardBot&backgroundColor=37474f";
 
 function hashString(str) {
@@ -1866,9 +1868,10 @@ function getAvatarFor(player) {
   if (player.isBot || (player.id && (player.id.startsWith("bot:") || player.id.startsWith("local-bot")))) {
     return { url: BOT_AVATAR_URL, color: "#37474f" };
   }
-  const seed = hashString(player.id || player.name || "player");
-  const url = AVATAR_URLS[seed % AVATAR_URLS.length];
-  return { url, color: "#1f2d25" };
+  const style = player.avatar && DICEBEAR_STYLES.includes(player.avatar) ? player.avatar : "big-smile";
+  const seed = player.id || player.name || "player";
+  const colors = ["#1f2d25", "#2d1f2d", "#1f2a2d", "#2d2a1f", "#1a1a2e"];
+  return { url: buildAvatarURL(style, seed), color: colors[hashString(seed) % colors.length] };
 }
 
 function buildTimerRing() {
@@ -3178,6 +3181,24 @@ function submitNamePrompt() {
 }
 
 /* ---------- Settings panel ---------- */
+function renderAvatarGrid() {
+  const grid = document.getElementById("avatarGrid");
+  if (!grid || !userProfile?.userId) return;
+  const current = userProfile.avatar || "big-smile";
+  grid.innerHTML = DICEBEAR_STYLES.map((style) => {
+    const url = buildAvatarURL(style, String(userProfile.userId));
+    return `<button class="avatar-option${style === current ? " is-active" : ""}" data-style="${style}" type="button" title="${style}"><img src="${url}" alt="${style}" loading="lazy" /></button>`;
+  }).join("");
+}
+document.getElementById("avatarGrid")?.addEventListener("click", (e) => {
+  const btn = e.target.closest(".avatar-option");
+  if (!btn || !userProfile) return;
+  const style = btn.dataset.style;
+  socket.emit("updateProfile", { avatar: style });
+  userProfile.avatar = style;
+  renderAvatarGrid();
+});
+
 function openSettings() {
   unlockAudio();
   if (!SETTINGS_EL) return;
@@ -3188,6 +3209,7 @@ function openSettings() {
     leaveBtn.style.display = currentRoom ? "" : "none";
   }
   updateSettingsSwitches();
+  renderAvatarGrid();
 }
 
 function closeSettings() {
@@ -3263,7 +3285,7 @@ function showProfile(row) {
   const winRate = row.gamesPlayed > 0 ? Math.round((row.wins / row.gamesPlayed) * 100) : 0;
   const trophies = Number.isFinite(row.trophies) ? row.trophies : ((row.gamesPlayed || 0) * 5 + (row.wins || 0) * 25);
   const tier = trophyTier(trophies);
-  const { url, color } = getAvatarFor({ id: String(row.userId), isBot: false, name: row.name });
+  const { url, color } = getAvatarFor({ id: String(row.userId), isBot: false, name: row.name, avatar: row.avatar });
   const avatarEl = document.getElementById("profileAvatar");
   if (avatarEl) {
     avatarEl.style.setProperty("--avatar-bg", color);

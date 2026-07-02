@@ -167,6 +167,7 @@ function createPlayer(socket, name) {
     id: socket.id,
     token: makeToken(),
     userId: (socket.data && socket.data.userId) || null,
+    avatar: (socket.data && socket.data.avatar) || "big-smile",
     name: dbApi.sanitizeName(name),
     cards: [],
     calledUNO: false,
@@ -267,7 +268,8 @@ function getSafeRoom(roomCode) {
       name: player.name,
       cardCount: player.cards.length,
       isBot: !!player.isBot,
-      disconnected: !!player.disconnected
+      disconnected: !!player.disconnected,
+      avatar: player.avatar || "big-smile"
     })),
     started: room.started,
     turn: room.turn,
@@ -1177,6 +1179,7 @@ io.on("connection", (socket) => {
         }
       }
       socket.data.userId = final.id;
+      socket.data.avatar = final.avatar;
       attachUserIdToActiveSeats(socket, final.id);
       socket.emit("loggedIn", {
         userId: final.id,
@@ -1207,6 +1210,7 @@ io.on("connection", (socket) => {
       const player = rooms[code].players.find((p) => p.userId === userId);
       if (!player) return;
       player.name = user.name;
+      player.avatar = user.avatar;
       if (rooms[code].started) emitGameState(code); else emitLobby(code);
     });
     socket.emit("profileUpdated", {

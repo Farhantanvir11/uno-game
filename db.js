@@ -14,11 +14,13 @@ const path   = require("node:path");
 const fs     = require("node:fs");
 const { createClient } = require("@libsql/client");
 
-const DEFAULT_AVATAR = "default";
+const DEFAULT_AVATAR = "big-smile";
 const MAX_NAME_LEN   = 24;
 const MIN_NAME_LEN   = 2;
 const VALID_AVATARS  = new Set([
-  "default", "fox", "panda", "tiger", "lion", "robot", "wizard", "ninja"
+  "big-smile", "fun-emoji", "bottts", "avataaars", "pixel-art",
+  "identicon", "shapes", "lorelei", "micah", "notionists",
+  "open-peeps", "adventurer"
 ]);
 
 function buildClient() {
