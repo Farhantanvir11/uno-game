@@ -713,15 +713,16 @@ function showToast(message, duration = 1000) {
 }
 
 // ----- Achievements -----
+const _svg = (paths) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 const ACHIEVEMENTS = [
-  { key:"first_win",  icon:"\u{1F947}", label:"First Win",      desc:"Win your first game",       check: s => (s.wins||0) >= 1 },
-  { key:"games_10",   icon:"\u{1F3AE}", label:"Getting Started", desc:"Play 10 games",            check: s => (s.gamesPlayed||0) >= 10 },
-  { key:"games_100",  icon:"\u{1F4AF}", label:"Centurion",       desc:"Play 100 games",           check: s => (s.gamesPlayed||0) >= 100 },
-  { key:"streak_3",   icon:"\u{1F4C8}", label:"Hot Streak",      desc:"Win 3 in a row",          check: s => (s.bestStreak||0) >= 3 },
-  { key:"streak_5",   icon:"\u{1F525}", label:"On Fire",         desc:"Win 5 in a row",          check: s => (s.bestStreak||0) >= 5 },
-  { key:"streak_10",  icon:"⚡",   label:"Unstoppable",      desc:"Win 10 in a row",         check: s => (s.bestStreak||0) >= 10 },
-  { key:"bot_10",     icon:"\u{1F916}", label:"Bot Crusher",     desc:"Win 10 games vs bots",    check: s => (s.botWins||0) >= 10 },
-  { key:"human_10",   icon:"\u{1F3C6}", label:"Champion",        desc:"Win 10 games vs players", check: s => (s.humanWins||0) >= 10 },
+  { key:"first_win",  label:"First Win",      desc:"Win your first game",       svg:_svg('<path d="M6 9a6 6 0 0 0 12 0V3H6z"/><path d="M6 5H3v2a3 3 0 0 0 3 3"/><path d="M18 5h3v2a3 3 0 0 1-3 3"/><path d="M12 15v4"/><path d="M8 21h8"/>'),                  check: s => (s.wins||0) >= 1 },
+  { key:"games_10",   label:"Getting Started", desc:"Play 10 games",            svg:_svg('<line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><circle cx="15" cy="11" r="1"/><circle cx="18" cy="13" r="1"/><rect x="2" y="6" width="20" height="12" rx="3"/>'), check: s => (s.gamesPlayed||0) >= 10 },
+  { key:"games_100",  label:"Centurion",       desc:"Play 100 games",           svg:_svg('<circle cx="12" cy="9" r="5"/><path d="M8 13.5L6 22l6-3 6 3-2-8.5"/><path d="M12 7v4M10 9h4"/>'),                                                              check: s => (s.gamesPlayed||0) >= 100 },
+  { key:"streak_3",   label:"Hot Streak",      desc:"Win 3 in a row",          svg:_svg('<polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/>'),                                                               check: s => (s.bestStreak||0) >= 3 },
+  { key:"streak_5",   label:"On Fire",         desc:"Win 5 in a row",          svg:_svg('<path d="M12 22c4 0 7-3 7-7 0-3-2-5-3-6 0 2-1 3-2 3 0-3-2-5-3-7 0-1 0-3-1-4 0 1-1 2-1 3 0 2-2 4-3 5-1 1-2 3-2 5 0 4 3 7 7 7z"/>'),                 check: s => (s.bestStreak||0) >= 5 },
+  { key:"streak_10",  label:"Unstoppable",      desc:"Win 10 in a row",         svg:_svg('<polygon points="13 2 4 14 11 14 9 22 20 8 13 8"/>'),                                                                                            check: s => (s.bestStreak||0) >= 10 },
+  { key:"bot_10",     label:"Bot Crusher",     desc:"Win 10 games vs bots",    svg:_svg('<rect x="4" y="8" width="16" height="10" rx="2"/><circle cx="9" cy="13" r="1.5"/><circle cx="15" cy="13" r="1.5"/><line x1="12" y1="4" x2="12" y2="8"/><circle cx="12" cy="3" r="1"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/>'), check: s => (s.botWins||0) >= 10 },
+  { key:"human_10",   label:"Champion",        desc:"Win 10 games vs players", svg:_svg('<path d="M4 8l4 4 4-8 4 8 4-4v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><line x1="4" y1="20" x2="20" y2="20"/>'),                                                  check: s => (s.humanWins||0) >= 10 },
 ];
 const ACHIEVEMENT_SEEN_KEY = "lcb-achievements-seen";
 function getUnlockedAchievements(stats) {
@@ -734,11 +735,15 @@ function checkNewAchievements(stats) {
   const fresh = getUnlockedAchievements(stats).filter(a => !seen.includes(a.key));
   if (fresh.length) {
     fresh.forEach(a => {
-      showToast(`${a.icon} Achievement Unlocked: ${a.label}!`, 3000);
+      showToast(`Achievement Unlocked: ${a.label}!`, 3000);
       seen.push(a.key);
     });
     localStorage.setItem(ACHIEVEMENT_SEEN_KEY, JSON.stringify(seen));
   }
+}
+function showAchievementInfo(key) {
+  const a = ACHIEVEMENTS.find(x => x.key === key);
+  if (a) showToast(`${a.label} — ${a.desc}`, 2500);
 }
 
 function renderDeckDecision(room) {
@@ -3396,8 +3401,8 @@ function showProfile(row) {
       <div class="achievement-grid">${(() => {
         const unlockedKeys = new Set(getUnlockedAchievements(row).map(a => a.key));
         return ACHIEVEMENTS.map(a =>
-          `<div class="achievement-badge${unlockedKeys.has(a.key) ? "" : " is-locked"}" title="${a.desc}">
-            <span class="achievement-icon">${a.icon}</span>
+          `<div class="achievement-badge${unlockedKeys.has(a.key) ? "" : " is-locked"}" onclick="showAchievementInfo('${a.key}')">
+            <span class="achievement-icon">${a.svg}</span>
             <span class="achievement-label">${a.label}</span>
           </div>`
         ).join("");

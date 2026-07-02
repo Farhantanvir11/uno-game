@@ -5223,12 +5223,15 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 .achievement-badge {
   text-align: center; padding: 10px 4px; border-radius: 10px;
   background: rgba(255,215,0,.08); border: 1px solid rgba(255,215,0,.2);
+  cursor: pointer; transition: transform .12s, border-color .12s;
 }
+.achievement-badge:hover { transform: translateY(-2px); border-color: rgba(255,215,0,.4); }
 .achievement-badge.is-locked {
   opacity: .35; filter: grayscale(1); background: rgba(255,255,255,.03);
   border-color: rgba(255,255,255,.06);
 }
-.achievement-icon { font-size: 1.4rem; display: block; }
+.achievement-icon { display: flex; justify-content: center; margin-bottom: 2px; }
+.achievement-icon svg { width: 28px; height: 28px; }
 .achievement-label { font-size: .6rem; color: rgba(255,255,255,.7); margin-top: 4px; display: block; }
 .profile-body { padding: 0 4px; }
 .profile-stats {
