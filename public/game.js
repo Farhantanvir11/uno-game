@@ -3209,7 +3209,11 @@ function openSettings() {
     leaveBtn.style.display = currentRoom ? "" : "none";
   }
   updateSettingsSwitches();
-  renderAvatarGrid();
+  // Avatar picker only from the home screen — hide when in a room.
+  const showAvatar = !currentRoom;
+  document.querySelector('[data-setting="avatar"]')?.style.display = showAvatar ? "" : "none";
+  document.getElementById("avatarGrid")?.style.display = showAvatar ? "" : "none";
+  if (showAvatar) renderAvatarGrid();
 }
 
 function closeSettings() {
