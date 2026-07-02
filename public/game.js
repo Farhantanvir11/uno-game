@@ -3195,7 +3195,7 @@ function closeSettings() {
 }
 
 const THEME_KEY = "lcb-card-theme";
-const THEMES = ["neon", "minimal", "retro"];
+const THEMES = ["galaxy", "minimal", "retro"];
 function applyCardTheme(theme) {
   THEMES.forEach((t) => document.body.classList.remove(`theme-${t}`));
   if (theme && theme !== "classic" && THEMES.includes(theme)) {
