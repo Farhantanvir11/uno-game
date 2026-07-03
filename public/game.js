@@ -111,7 +111,7 @@ socket.on("loggedIn", (payload) => {
   if (nameInput && !nameInput.value && payload.name) nameInput.value = payload.name;
 
   renderProfileSummary();
-  renderDailyChallenges();
+  maybeShowDailyPopup();
 });
 
 socket.on("profileUpdated", (payload) => {
@@ -790,6 +790,21 @@ function renderDailyChallenges() {
       <span class="daily-item-progress">${done ? "✓" : val + "/" + d.target}</span>
     </div>`;
   }).join("");
+}
+const DAILY_SEEN_KEY = "lcb-daily-seen";
+function maybeShowDailyPopup() {
+  renderDailyChallenges();
+  const seed = getDailySeed();
+  const seen = localStorage.getItem(DAILY_SEEN_KEY);
+  if (seen !== seed) {
+    const el = document.getElementById("dailyModal");
+    if (el) el.style.display = "flex";
+  }
+}
+function closeDailyModal() {
+  const el = document.getElementById("dailyModal");
+  if (el) el.style.display = "none";
+  localStorage.setItem(DAILY_SEEN_KEY, getDailySeed());
 }
 
 function renderDeckDecision(room) {
@@ -3710,6 +3725,7 @@ function handleHardwareBack() {
     { el: document.getElementById("profileModal"),      close: () => closeProfile() },
     { el: document.getElementById("avatarPickerModal"), close: () => closeAvatarPicker() },
     { el: document.getElementById("themePickerModal"),  close: () => closeThemePicker() },
+    { el: document.getElementById("dailyModal"),        close: () => closeDailyModal() },
     { el: document.getElementById("colorPicker"),       close: () => {
         document.getElementById("colorPicker").style.display = "none";
         // Reset pending wild-card state so the card returns to hand cleanly.

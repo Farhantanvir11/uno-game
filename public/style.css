@@ -5256,16 +5256,9 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 .profile-vs-label { font-size: .65rem; text-transform: uppercase; letter-spacing: .08em;
   color: rgba(255,255,255,.45); margin-top: 4px; }
 
-/* Daily Challenges (home screen) */
-.daily-challenges {
-  max-width: min(86vw, 340px); margin: 12px auto 0; padding: 14px 16px;
-  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
-  border-radius: 16px;
-}
-.daily-header {
-  font-size: .72rem; font-weight: 700; color: #ffd54f;
-  text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px;
-}
+/* Daily Challenges popup */
+.daily-card { max-width: min(92vw, 420px); }
+.daily-list { padding: 4px 8px 8px; }
 .daily-item {
   display: flex; align-items: center; gap: 10px; padding: 5px 0;
 }

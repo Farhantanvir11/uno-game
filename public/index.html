@@ -67,11 +67,6 @@
         </button>
       </div>
 
-      <div class="daily-challenges" id="dailyChallenges">
-        <div class="daily-header">Today's Challenges</div>
-        <div class="daily-list" id="dailyList"></div>
-      </div>
-
       <div class="hero-cta-overlay">
         <button class="cta-primary" type="button" onclick="goToFriends()">
           <span class="cta-shine"></span>
@@ -228,6 +223,19 @@
         <p class="settings-sub">Tap to select your style</p>
       </div>
       <div class="avatar-grid" id="avatarGrid"></div>
+    </div>
+  </div>
+
+  <!-- ========== DAILY CHALLENGES POPUP ========== -->
+  <div id="dailyModal" class="settings-overlay" style="display:none;" onclick="if(event.target===this) closeDailyModal()">
+    <div class="settings-card daily-card">
+      <button class="tutorial-close" type="button" onclick="closeDailyModal()" aria-label="Close">&times;</button>
+      <div class="settings-header">
+        <div class="settings-glow"></div>
+        <h3 class="settings-title">Today's Challenges</h3>
+        <p class="settings-sub">Complete them before midnight!</p>
+      </div>
+      <div class="daily-list" id="dailyList"></div>
     </div>
   </div>
 
