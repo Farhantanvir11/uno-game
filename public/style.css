@@ -5255,6 +5255,30 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 .profile-vs-val { font-size: 1.2rem; font-weight: 700; color: #fff; margin-top: 4px; }
 .profile-vs-label { font-size: .65rem; text-transform: uppercase; letter-spacing: .08em;
   color: rgba(255,255,255,.45); margin-top: 4px; }
+
+/* Daily Challenges (home screen) */
+.daily-challenges {
+  max-width: min(86vw, 340px); margin: 12px auto 0; padding: 14px 16px;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+  border-radius: 16px;
+}
+.daily-header {
+  font-size: .72rem; font-weight: 700; color: #ffd54f;
+  text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px;
+}
+.daily-item {
+  display: flex; align-items: center; gap: 10px; padding: 5px 0;
+}
+.daily-item-icon { width: 24px; height: 24px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.daily-item-icon svg { width: 20px; height: 20px; color: rgba(255,255,255,.6); }
+.daily-item-text { flex: 1; font-size: .82rem; color: rgba(255,255,255,.85); }
+.daily-item-progress {
+  font-size: .72rem; font-weight: 700; color: rgba(255,255,255,.5);
+  min-width: 32px; text-align: right;
+}
+.daily-item.done .daily-item-progress { color: #4cd964; font-size: .9rem; }
+.daily-item.done .daily-item-text { text-decoration: line-through; opacity: .55; }
+.daily-item.done .daily-item-icon svg { color: #4cd964; }
 .lb-hint {
   margin-top: 10px;
   font-size: 0.75rem;

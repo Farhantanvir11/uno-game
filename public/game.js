@@ -111,6 +111,7 @@ socket.on("loggedIn", (payload) => {
   if (nameInput && !nameInput.value && payload.name) nameInput.value = payload.name;
 
   renderProfileSummary();
+  renderDailyChallenges();
 });
 
 socket.on("profileUpdated", (payload) => {
@@ -744,6 +745,51 @@ function checkNewAchievements(stats) {
 function showAchievementInfo(key) {
   const a = ACHIEVEMENTS.find(x => x.key === key);
   if (a) showToast(`${a.label} — ${a.desc}`, 2500);
+}
+
+// ----- Daily Challenges -----
+const DAILY_KEY = "lcb-daily-challenges";
+const DAILY_DEFS = [
+  { field:"play3", icon:_svg('<rect x="3" y="5" width="18" height="14" rx="2"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/><path d="M3 10h18"/>'), label:"Play 3 Games",     target: 3 },
+  { field:"win2",  icon:_svg('<path d="M6 9a6 6 0 0 0 12 0V3H6z"/><path d="M6 5H3v2a3 3 0 0 0 3 3"/><path d="M18 5h3v2a3 3 0 0 1-3 3"/><path d="M12 15v4"/><path d="M8 21h8"/>'),                 label:"Win 2 Games",      target: 2 },
+  { field:"bot1",  icon:_svg('<rect x="4" y="8" width="16" height="10" rx="2"/><circle cx="9" cy="13" r="1.5"/><circle cx="15" cy="13" r="1.5"/><line x1="12" y1="4" x2="12" y2="8"/><circle cx="12" cy="3" r="1"/>'),     label:"Play vs Bot",      target: 1 },
+];
+function getDailySeed() {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+}
+function getDailyData() {
+  const seed = getDailySeed();
+  let data;
+  try { data = JSON.parse(localStorage.getItem(DAILY_KEY) || "null"); } catch { data = null; }
+  if (!data || data.seed !== seed) {
+    data = { seed, play3:0, win2:0, bot1:0 };
+    localStorage.setItem(DAILY_KEY, JSON.stringify(data));
+  }
+  return data;
+}
+function incrementDaily(field) {
+  const data = getDailyData();
+  if (data[field] === undefined) return;
+  const def = DAILY_DEFS.find(d => d.field === field);
+  if (def && data[field] >= def.target) return;
+  data[field]++;
+  localStorage.setItem(DAILY_KEY, JSON.stringify(data));
+  renderDailyChallenges();
+}
+function renderDailyChallenges() {
+  const list = document.getElementById("dailyList");
+  if (!list) return;
+  const data = getDailyData();
+  list.innerHTML = DAILY_DEFS.map(d => {
+    const val = Math.min(data[d.field] || 0, d.target);
+    const done = val >= d.target;
+    return `<div class="daily-item${done ? " done" : ""}">
+      <span class="daily-item-icon">${d.icon}</span>
+      <span class="daily-item-text">${d.label}</span>
+      <span class="daily-item-progress">${done ? "✓" : val + "/" + d.target}</span>
+    </div>`;
+  }).join("");
 }
 
 function renderDeckDecision(room) {
@@ -2516,6 +2562,13 @@ socket.on("gameOver", (winnerName) => {
   winnerModal.style.display = "flex";
   resetRematchButton();
   burstConfetti();
+
+  // Daily challenges: increment on every game-over.
+  incrementDaily("play3");
+  if (_transportMode === "local") incrementDaily("bot1");
+  if (winnerName && userProfile && userProfile.name && winnerName === userProfile.name) {
+    incrementDaily("win2");
+  }
 
   // Reset the winner-modal leaderboard panel until fresh rows arrive.
   const wlList = document.getElementById("winnerLeaderboardList");
