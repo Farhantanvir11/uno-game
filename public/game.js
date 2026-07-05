@@ -776,6 +776,7 @@ function incrementDaily(field) {
   data[field]++;
   localStorage.setItem(DAILY_KEY, JSON.stringify(data));
   renderDailyChallenges();
+  updateDailyBadge();
 }
 function renderDailyChallenges() {
   const list = document.getElementById("dailyList");
@@ -794,6 +795,7 @@ function renderDailyChallenges() {
 const DAILY_SEEN_KEY = "lcb-daily-seen";
 function maybeShowDailyPopup() {
   renderDailyChallenges();
+  updateDailyBadge();
   const seed = getDailySeed();
   const seen = localStorage.getItem(DAILY_SEEN_KEY);
   if (seen !== seed) {
@@ -805,6 +807,26 @@ function closeDailyModal() {
   const el = document.getElementById("dailyModal");
   if (el) el.style.display = "none";
   localStorage.setItem(DAILY_SEEN_KEY, getDailySeed());
+}
+function openDailyModal() {
+  renderDailyChallenges();
+  const el = document.getElementById("dailyModal");
+  if (el) el.style.display = "flex";
+}
+function updateDailyBadge() {
+  const badge = document.getElementById("dailyProgressBadge");
+  if (!badge) return;
+  const data = getDailyData();
+  const done = DAILY_DEFS.filter(d => (data[d.field]||0) >= d.target).length;
+  const total = DAILY_DEFS.length;
+  if (done >= total) {
+    badge.textContent = "✓";
+    badge.classList.add("is-done");
+  } else {
+    badge.textContent = done + "/" + total;
+    badge.classList.remove("is-done");
+  }
+  badge.classList.add("is-visible");
 }
 
 function renderDeckDecision(room) {

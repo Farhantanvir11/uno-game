@@ -4242,6 +4242,18 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
 .top-action-btn svg { width: 20px; height: 20px; }
 
 /* Notification badge for the Browse Rooms (eye) button */
+.daily-badge {
+  position: absolute; top: 3px; right: 3px;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 999px;
+  background: #ff3b30; color: #fff;
+  font-size: .55rem; font-weight: 800; line-height: 16px; text-align: center;
+  box-shadow: 0 0 4px rgba(255,59,48,.6);
+  display: none; pointer-events: none;
+}
+.daily-badge.is-visible { display: block; }
+.daily-badge.is-done { background: #4cd964; box-shadow: 0 0 4px rgba(76,217,100,.6); }
+
 .room-badge {
   position: absolute;
   top: 4px;
