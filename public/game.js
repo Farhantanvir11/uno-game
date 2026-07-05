@@ -2990,7 +2990,13 @@ const tutorialSteps = [
   },
   {
     title: "Stacking +2 and +4",
-    body: "If a +2 or +4 lands on you, you can <b>stack another +2/+4</b> to pass the penalty along — otherwise you must draw the full stack.",
+    body: `
+      <ul class="tut-list">
+        <li>On a <b>+2</b>, you can stack <b>+2</b> or <b>+4</b></li>
+        <li>On a <b>+4</b>, you can only stack another <b>+4</b></li>
+        <li><b>+2 cannot be stacked on +4</b></li>
+        <li>Stacking can be turned off by the host</li>
+      </ul>`,
     art: `
       <div class="tut-row">
         <div class="tut-card red">+2</div>
@@ -2998,15 +3004,45 @@ const tutorialSteps = [
         <div class="tut-card blue">+2</div>
         <div class="tut-arrow">=</div>
         <div class="tut-card-stack">+4 to next!</div>
-      </div>`
+      </div>
+      <p class="tut-caption">+2 on +2 works. +2 on +4 does not.</p>`
+  },
+  {
+    title: "Penalties",
+    body: `
+      <ul class="tut-list">
+        <li><b>Wrong card</b> — playing a card that doesn't match? You draw <b>1</b> and lose your turn.</li>
+        <li><b>Power-card finish</b> — trying to win on a power card? Draw <b>10</b> + lose your turn.</li>
+        <li><b>Missed Last Card</b> — forgot to press (or an opponent calls you out)? Draw <b>2</b>.</li>
+      </ul>`,
+    art: `
+      <div class="tut-row">
+        <div class="tut-card red tut-power">⊘</div>
+        <div class="tut-arrow">→</div>
+        <div class="tut-card-stack">10 penalty!</div>
+      </div>
+      <p class="tut-caption">No finishing on Skip, Reverse, +2, +4, or Wild.</p>`
   },
   {
     title: "Last Card!",
-    body: "When you have <b>one card left</b>, press the <b>Last Card!</b> button quickly. If you're too slow — or an opponent calls you out first — you draw 2 as a penalty.",
+    body: "When you have <b>one card left</b>, press the <b>Last Card!</b> button quickly. If you're too slow — or an opponent calls you out first — you draw 2 as a penalty.<br/><br/><b>You cannot finish on a power card</b> (Skip, Reverse, +2, +4, Wild). If you try, you draw <b>10 cards</b> and lose your turn.<br/><br/>You have <b>20 seconds</b> per turn — don't run out of time!",
     art: `
       <div class="tut-row tut-uno">
         <div class="tut-card yellow">3</div>
         <div class="tut-shout">LAST<br/>CARD!</div>
+      </div>`
+  },
+  {
+    title: "Host Rules",
+    body: `When creating a room, the host can toggle:
+      <ul class="tut-list">
+        <li><b>Stack +2/+4</b> — allow chaining draw penalties (on by default)</li>
+        <li><b>Draw Until Playable</b> — keep drawing until you get a playable card (off by default)</li>
+        <li><b>Challenge +4</b> — challenge a +4 if you suspect they had a matching color (off by default)</li>
+      </ul>`,
+    art: `
+      <div class="tut-row">
+        <div class="tut-card-stack" style="background:rgba(255,213,79,.15);color:#ffd54f;">⚙ Host Settings</div>
       </div>`
   },
   {
