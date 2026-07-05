@@ -4216,6 +4216,11 @@ body:not([data-screen="game"]) .reaction-popover { display: none !important; }
   gap: 10px;
   z-index: 4;
 }
+.top-actions-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 .top-action-btn {
   width: 40px;
   height: 40px;
